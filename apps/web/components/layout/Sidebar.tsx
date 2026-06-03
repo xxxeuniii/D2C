@@ -3,41 +3,22 @@
 import { cn } from "@/lib/utils/cn";
 import { usePathname, useRouter } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
-import {
-  MessageSquare,
-  Figma,
-  Bot,
-  Database,
-  Settings,
-  ChevronLeft,
-  ChevronRight,
-} from "lucide-react";
+import { Figma, Database } from "lucide-react";
 
 interface SidebarProps {
   collapsed: boolean;
 }
 
 const navItems = [
-  { icon: MessageSquare, label: "Chat", path: "/chat" },
-  { icon: Figma, label: "Figma to Code", path: "/figma2code" },
-  { icon: Bot, label: "Agent", path: "/agent" },
-  { icon: Database, label: "Knowledge", path: "/knowledge" },
-];
-
-const bottomItems = [
-  { icon: Settings, label: "Settings", path: "/settings" },
+  { icon: Figma, label: "Figma \u2192 Code", path: "/figma2code" },
+  { icon: Database, label: "Knowledge Base", path: "/knowledge" },
 ];
 
 export function Sidebar({ collapsed }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
 
-  const isActive = (path: string) => {
-    if (path === "/chat") {
-      return pathname === "/chat";
-    }
-    return pathname.startsWith(path);
-  };
+  const isActive = (path: string) => pathname.startsWith(path);
 
   const NavButton = ({
     icon: Icon,
@@ -56,7 +37,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
           "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm transition-all duration-150",
           collapsed ? "justify-center px-2" : "px-3",
           active
-            ? "bg-brand-primary/10 text-brand-primary"
+            ? "bg-brand-primary/15 text-brand-primary border border-brand-primary/20"
             : "text-text-secondary hover:bg-bg-elevated hover:text-text-primary"
         )}
       >
@@ -65,9 +46,7 @@ export function Sidebar({ collapsed }: SidebarProps) {
       </button>
     );
 
-    if (collapsed) {
-      return <Tooltip content={label} side="right">{button}</Tooltip>;
-    }
+    if (collapsed) return <Tooltip content={label} side="right">{button}</Tooltip>;
     return button;
   };
 
@@ -75,10 +54,9 @@ export function Sidebar({ collapsed }: SidebarProps) {
     <aside
       className={cn(
         "flex flex-col border-r border-border bg-bg-surface transition-all duration-300",
-        collapsed ? "w-[48px]" : "w-[220px]"
+        collapsed ? "w-[48px]" : "w-[200px]"
       )}
     >
-      {/* Logo Area */}
       <div
         className={cn(
           "flex h-12 items-center border-b border-border px-3",
@@ -86,26 +64,18 @@ export function Sidebar({ collapsed }: SidebarProps) {
         )}
       >
         <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-primary">
-          <span className="text-xs font-bold text-white">DC</span>
+          <span className="text-xs font-bold text-text-inverse">DC</span>
         </div>
         {!collapsed && (
           <span className="text-sm font-semibold text-text-primary">D2C</span>
         )}
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 space-y-1 p-2">
         {navItems.map((item) => (
           <NavButton key={item.path} {...item} />
         ))}
       </nav>
-
-      {/* Bottom Items */}
-      <div className="border-t border-border p-2 space-y-1">
-        {bottomItems.map((item) => (
-          <NavButton key={item.path} {...item} />
-        ))}
-      </div>
     </aside>
   );
 }
