@@ -1,45 +1,38 @@
 import { create } from "zustand";
+import { persist } from "zustand/middleware";
 import { FigmaAnalysis } from "@/types";
 
 interface FigmaState {
-  // 当前分析结果
   analysis: FigmaAnalysis | null;
-
-  // 加载状态
   isLoading: boolean;
-
-  // 错误信息
   error: string | null;
+  figmaToken: string | null;
 
-  // Actions
   setAnalysis: (analysis: FigmaAnalysis) => void;
   setLoading: (loading: boolean) => void;
   setError: (error: string | null) => void;
+  setFigmaToken: (token: string) => void;
   reset: () => void;
 }
 
-export const useFigmaStore = create<FigmaState>((set) => ({
-  analysis: null,
-  isLoading: false,
-  error: null,
-
-  setAnalysis: (analysis: FigmaAnalysis) => {
-    set({ analysis, error: null });
-  },
-
-  setLoading: (isLoading: boolean) => {
-    set({ isLoading });
-  },
-
-  setError: (error: string | null) => {
-    set({ error, isLoading: false });
-  },
-
-  reset: () => {
-    set({
+export const useFigmaStore = create<FigmaState>()(
+  persist(
+    (set) => ({
       analysis: null,
       isLoading: false,
       error: null,
-    });
-  },
-}));
+      figmaToken: null,
+
+      setAnalysis: (analysis) => set({ analysis, error: null }),
+      setLoading: (isLoading) => set({ isLoading }),
+      setError: (error) => set({ error, isLoading: false }),
+      setFigmaToken: (figmaToken) => set({ figmaToken }),
+      reset: () =>
+        set({ analysis: null, isLoading: false, error: null }),
+    }),
+    {
+      name: "d2c-figma-storage",
+      partialize: (state) => ({ figmaToken: state.figmaToken }),
+    }
+  )
+);

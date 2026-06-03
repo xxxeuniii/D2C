@@ -5,15 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useFigma } from "@/hooks/useFigma";
 import { cn } from "@/lib/utils/cn";
-import { Link, Loader2, Check } from "lucide-react";
+import { Link, Loader2, Code2 } from "lucide-react";
 
 type Framework = "vue3" | "react" | "nextjs";
-type ComponentLib = "antd" | "element-plus" | "shadcn";
 
 export function FigmaImporter() {
   const [url, setUrl] = useState("");
   const [framework, setFramework] = useState<Framework>("react");
-  const [componentLib, setComponentLib] = useState<ComponentLib>("shadcn");
   const { analyze, isLoading, error } = useFigma();
 
   const isValidUrl = url.trim().match(
@@ -23,7 +21,7 @@ export function FigmaImporter() {
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!isValidUrl) return;
-    await analyze(url, framework, componentLib);
+    await analyze(url, framework);
   };
 
   const frameworks: { key: Framework; label: string }[] = [
@@ -32,24 +30,16 @@ export function FigmaImporter() {
     { key: "nextjs", label: "Next.js" },
   ];
 
-  const componentLibs: { key: ComponentLib; label: string }[] = [
-    { key: "antd", label: "Ant Design" },
-    { key: "element-plus", label: "Element Plus" },
-    { key: "shadcn", label: "shadcn/ui" },
-  ];
-
   return (
-    <div className="w-full max-w-lg animate-fade-in">
+    <div className="w-full animate-fade-in">
       <div className="text-center mb-8">
-        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-primary/10">
-          <svg className="h-7 w-7 text-brand-primary" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.477 2 2 6.477 2 12s4.477 10 10 10 10-4.477 10-10S17.523 2 12 2zm-1 15l-4-4 1.41-1.41L11 14.17l5.59-5.59L18 10l-7 7z" />
-          </svg>
+        <div className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-primary/15">
+          <Code2 className="h-7 w-7 text-brand-primary" />
         </div>
         <h2 className="text-xl font-semibold text-text-primary">
-          Import from Figma
+          Figma to Code
         </h2>
-        <p className="mt-2 text-sm text-text-tertiary">
+        <p className="mt-2 text-sm text-text-secondary">
           Paste a Figma design link to generate production-ready code
         </p>
       </div>
@@ -67,7 +57,7 @@ export function FigmaImporter() {
               placeholder="https://www.figma.com/file/..."
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              className="pl-10"
+              className="pl-10 font-mono text-xs"
               disabled={isLoading}
             />
           </div>
@@ -79,7 +69,7 @@ export function FigmaImporter() {
         {/* Framework Selection */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-            Framework
+            Target Framework
           </label>
           <div className="flex gap-2">
             {frameworks.map(({ key, label }) => (
@@ -91,7 +81,7 @@ export function FigmaImporter() {
                 className={cn(
                   "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all",
                   framework === key
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
+                    ? "border-brand-primary bg-brand-primary/15 text-brand-primary"
                     : "border-border bg-bg-base text-text-secondary hover:border-border-strong hover:text-text-primary"
                 )}
               >
@@ -101,32 +91,7 @@ export function FigmaImporter() {
           </div>
         </div>
 
-        {/* Component Library Selection */}
-        <div>
-          <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-            Component Library
-          </label>
-          <div className="flex gap-2">
-            {componentLibs.map(({ key, label }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setComponentLib(key)}
-                disabled={isLoading}
-                className={cn(
-                  "flex-1 rounded-lg border px-3 py-2 text-sm font-medium transition-all",
-                  componentLib === key
-                    ? "border-brand-primary bg-brand-primary/10 text-brand-primary"
-                    : "border-border bg-bg-base text-text-secondary hover:border-border-strong hover:text-text-primary"
-                )}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Submit Button */}
+        {/* Submit */}
         <Button
           type="submit"
           className="w-full"
@@ -134,7 +99,7 @@ export function FigmaImporter() {
           disabled={!isValidUrl}
           isLoading={isLoading}
         >
-          {isLoading ? "Analyzing design..." : "Parse & Generate"}
+          {isLoading ? "Analyzing design..." : "Parse & Generate Code"}
         </Button>
       </form>
     </div>

@@ -1,84 +1,94 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { useRAGStore } from "@/lib/store/ragStore";
+import { uploadDocument, deleteDocument } from "@/lib/api/rag";
+import { RAGDocument } from "@/types";
+import { generateId, formatRelativeTime } from "@/lib/utils/format";
 import {
   Search,
   Plus,
   FileText,
   FolderOpen,
-  MoreHorizontal,
   Trash2,
+  Upload,
+  Loader2,
+  MoreHorizontal,
+  BookOpen,
 } from "lucide-react";
 
-interface KnowledgeItem {
-  id: string;
-  name: string;
-  type: "document" | "folder";
-  size?: string;
-  updatedAt: string;
-  status: "ready" | "processing" | "error";
-}
-
-const mockItems: KnowledgeItem[] = [
-  {
-    id: "1",
-    name: "设计规范文档.pdf",
-    type: "document",
-    size: "2.4 MB",
-    updatedAt: "2026-06-03",
-    status: "ready",
-  },
-  {
-    id: "2",
-    name: "组件库说明",
-    type: "folder",
-    updatedAt: "2026-06-02",
-    status: "ready",
-  },
-  {
-    id: "3",
-    name: "API 接口文档.md",
-    type: "document",
-    size: "156 KB",
-    updatedAt: "2026-06-01",
-    status: "processing",
-  },
-  {
-    id: "4",
-    name: "项目架构设计.md",
-    type: "document",
-    size: "892 KB",
-    updatedAt: "2026-05-30",
-    status: "ready",
-  },
-  {
-    id: "5",
-    name: "旧版文档(已废弃)",
-    type: "folder",
-    updatedAt: "2026-05-28",
-    status: "error",
-  },
-];
-
 export default function KnowledgePage() {
+  const { documents, addDocument, removeDocument, updateDocument } =
+    useRAGStore();
   const [search, setSearch] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const filtered = mockItems.filter((item) =>
+  const filtered = documents.filter((item) =>
     item.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  const statusBadge = (status: KnowledgeItem["status"]) => {
-    switch (status) {
-      case "ready":
-        return <Badge variant="success">Ready</Badge>;
-      case "processing":
-        return <Badge variant="warning">Processing</Badge>;
-      case "error":
-        return <Badge variant="error">Error</Badge>;
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // 检查文件类型
+    const allowedTypes = [".pdf", ".md", ".txt", ".json", ".docx"];
+    const ext = "." + file.name.split(".").pop()?.toLowerCase();
+    if (!allowedTypes.includes(ext)) {
+      alert("Supported formats: PDF, Markdown, TXT, JSON, DOCX");
+      return;
     }
+
+    const docId = generateId();
+    const newDoc: RAGDocument = {
+      id: docId,
+      name: file.name,
+      type: "document",
+      size: formatFileSize(file.size),
+      updatedAt: new Date().toISOString(),
+      status: "processing",
+    };
+
+    addDocument(newDoc);
+    setIsUploading(true);
+
+    try {
+      await uploadDocument({ file, name: file.name });
+
+      // 模拟向量化处理
+      await new Promise((r) => setTimeout(r, 2000));
+
+      updateDocument(docId, { status: "ready" });
+    } catch (err) {
+      updateDocument(docId, { status: "error" });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteDocument(id);
+      removeDocument(id);
+    } catch (err) {
+      console.error("Delete failed:", err);
+    }
+  };
+
+  const statusBadge = (status: RAGDocument["status"]) => {
+    const config = {
+      ready: { variant: "success" as const, label: "Indexed" },
+      processing: { variant: "warning" as const, label: "Indexing..." },
+      error: { variant: "error" as const, label: "Failed" },
+    };
+    const c = config[status];
+    return <Badge variant={c.variant}>{c.label}</Badge>;
   };
 
   return (
@@ -89,14 +99,49 @@ export default function KnowledgePage() {
           <h1 className="text-xl font-semibold text-text-primary">
             Knowledge Base
           </h1>
-          <p className="mt-1 text-sm text-text-tertiary">
-            Manage documents and context for AI
+          <p className="mt-1 text-sm text-text-secondary">
+            Upload design specs, coding standards, and component docs for RAG
           </p>
         </div>
-        <Button className="gap-2">
-          <Plus className="h-4 w-4" />
-          Upload Document
-        </Button>
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".pdf,.md,.txt,.json,.docx"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            onClick={() => fileInputRef.current?.click()}
+            isLoading={isUploading}
+            className="gap-2"
+          >
+            <Upload className="h-4 w-4" />
+            Upload Document
+          </Button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      <div className="mb-4 grid grid-cols-3 gap-3">
+        {[
+          { label: "Total Docs", value: documents.length, icon: FileText },
+          { label: "Indexed", value: documents.filter((d) => d.status === "ready").length, icon: BookOpen },
+          { label: "Processing", value: documents.filter((d) => d.status === "processing").length, icon: Loader2 },
+        ].map((stat) => (
+          <div
+            key={stat.label}
+            className="rounded-lg border border-border bg-bg-surface p-3"
+          >
+            <div className="flex items-center gap-2 text-text-tertiary">
+              <stat.icon className="h-3.5 w-3.5" />
+              <span className="text-xs">{stat.label}</span>
+            </div>
+            <p className="mt-1 text-lg font-semibold text-text-primary">
+              {stat.value}
+            </p>
+          </div>
+        ))}
       </div>
 
       {/* Search */}
@@ -110,58 +155,74 @@ export default function KnowledgePage() {
         />
       </div>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="rounded-lg border border-border">
-          {/* Table Header */}
-          <div className="flex items-center border-b border-border px-4 py-3 text-xs font-medium text-text-tertiary">
-            <div className="flex-1">Name</div>
-            <div className="w-24">Size</div>
-            <div className="w-28">Updated</div>
-            <div className="w-24">Status</div>
-            <div className="w-10"></div>
-          </div>
-
-          {/* Table Body */}
+      {/* Document List */}
+      <div className="flex-1 overflow-hidden rounded-lg border border-border">
+        <ScrollArea className="h-full">
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 text-text-tertiary">
-              <FolderOpen className="mb-3 h-10 w-10" />
-              <p className="text-sm">No documents found</p>
+              <FolderOpen className="mb-3 h-10 w-10 opacity-40" />
+              <p className="text-sm">
+                {documents.length === 0
+                  ? "No documents yet"
+                  : "No matching documents"}
+              </p>
               <p className="mt-1 text-xs">
-                Upload documents to build your knowledge base
+                Upload design specs and coding standards to enable RAG
               </p>
             </div>
           ) : (
-            filtered.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center border-b border-border/50 px-4 py-3 transition-colors hover:bg-bg-elevated/50 last:border-0"
-              >
-                <div className="flex flex-1 items-center gap-3">
-                  {item.type === "folder" ? (
-                    <FolderOpen className="h-5 w-5 text-brand-secondary" />
-                  ) : (
-                    <FileText className="h-5 w-5 text-text-tertiary" />
-                  )}
-                  <span className="text-sm text-text-primary">{item.name}</span>
-                </div>
-                <div className="w-24 text-sm text-text-tertiary">
-                  {item.size || "-"}
-                </div>
-                <div className="w-28 text-sm text-text-tertiary">
-                  {item.updatedAt}
-                </div>
-                <div className="w-24">{statusBadge(item.status)}</div>
-                <div className="w-10 text-right">
-                  <button className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary">
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-                </div>
-              </div>
-            ))
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border text-left text-xs font-medium text-text-tertiary">
+                  <th className="px-4 py-2.5">Name</th>
+                  <th className="w-24 px-4 py-2.5">Size</th>
+                  <th className="w-32 px-4 py-2.5">Updated</th>
+                  <th className="w-24 px-4 py-2.5">Status</th>
+                  <th className="w-12 px-4 py-2.5"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((item) => (
+                  <tr
+                    key={item.id}
+                    className="border-b border-border/50 transition-colors hover:bg-bg-elevated/30 last:border-0"
+                  >
+                    <td className="px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <FileText className="h-4 w-4 text-text-tertiary flex-shrink-0" />
+                        <span className="text-sm text-text-primary truncate">
+                          {item.name}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-sm text-text-tertiary">
+                      {item.size || "-"}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-text-tertiary">
+                      {formatRelativeTime(item.updatedAt)}
+                    </td>
+                    <td className="px-4 py-3">{statusBadge(item.status)}</td>
+                    <td className="px-4 py-3">
+                      <button
+                        onClick={() => handleDelete(item.id)}
+                        className="rounded p-1 text-text-tertiary hover:text-status-error transition-colors"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
-        </div>
+        </ScrollArea>
       </div>
     </div>
   );
+}
+
+function formatFileSize(bytes: number): string {
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
 }

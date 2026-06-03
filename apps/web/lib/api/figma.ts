@@ -3,7 +3,7 @@ import { client } from "./client";
 export interface FigmaAnalyzeParams {
   url: string;
   framework: string;
-  componentLib: string;
+  token: string;
 }
 
 export interface FigmaAnalysisResult {
@@ -18,10 +18,7 @@ export interface FigmaAnalysisResult {
 export async function analyzeFigmaFile(
   params: FigmaAnalyzeParams
 ): Promise<FigmaAnalysisResult> {
-  const response = await client.post<FigmaAnalysisResult>(
-    "/figma",
-    params
-  );
+  const response = await client.post<FigmaAnalysisResult>("/figma", params);
   return response.data;
 }
 

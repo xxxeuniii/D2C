@@ -1,28 +1,4 @@
 // ============================================
-// Chat Types
-// ============================================
-
-export interface Message {
-  id: string;
-  role: "user" | "assistant" | "system";
-  content: string;
-  createdAt: string;
-  metadata?: {
-    tokens?: number;
-    model?: string;
-    files?: string[];
-  };
-}
-
-export interface Conversation {
-  id: string;
-  title: string;
-  messages: Message[];
-  createdAt: string;
-  updatedAt?: string;
-}
-
-// ============================================
 // Figma Types
 // ============================================
 
@@ -56,7 +32,6 @@ export interface FigmaAnalysis {
   status: "pending" | "processing" | "completed" | "error";
   url?: string;
   framework?: string;
-  componentLib?: string;
   nodes?: FigmaNode[];
   previewUrl?: string;
   generatedCode?: string | GeneratedCodeFile[] | Record<string, string>;
@@ -69,37 +44,23 @@ export interface FigmaAnalysis {
 }
 
 // ============================================
-// Agent Types
+// RAG Types
 // ============================================
 
-export interface ToolCall {
-  name: string;
-  status: "running" | "completed" | "error";
-  input?: Record<string, any>;
-  output?: string | Record<string, any>;
-  error?: string;
-  timestamp?: string;
-}
-
-export interface AgentStep {
+export interface RAGDocument {
   id: string;
   name: string;
-  status: "pending" | "running" | "completed" | "error";
-  output?: string;
-  toolCalls?: ToolCall[];
-  startedAt?: string;
-  completedAt?: string;
+  type: "document" | "folder";
+  size?: string;
+  updatedAt: string;
+  status: "ready" | "processing" | "error";
+  chunks?: number;
 }
 
-export interface AgentRun {
-  id: string;
-  type: string;
-  status: "pending" | "running" | "completed" | "error";
-  steps: AgentStep[];
-  result?: any;
-  error?: string;
-  createdAt: string;
-  completedAt?: string;
+export interface RAGSearchResult {
+  document: RAGDocument;
+  chunk: string;
+  score: number;
 }
 
 // ============================================
@@ -116,38 +77,4 @@ export interface APIError {
   error: string;
   message: string;
   status: number;
-}
-
-export interface PaginatedResponse<T> extends APIResponse<T[]> {
-  total: number;
-  page: number;
-  pageSize: number;
-}
-
-// ============================================
-// SSE Types
-// ============================================
-
-export interface SSEEvent {
-  type: "message" | "done" | "error" | "tool_call";
-  data: string;
-  id?: string;
-}
-
-// ============================================
-// UI Types
-// ============================================
-
-export interface NavItem {
-  icon: string;
-  label: string;
-  path: string;
-  badge?: number;
-}
-
-export interface FileTab {
-  id: string;
-  name: string;
-  language: string;
-  code: string;
 }

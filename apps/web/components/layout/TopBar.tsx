@@ -10,6 +10,7 @@ interface TopBarProps {
 
 const pageTitles: Record<string, string> = {
   "/figma2code": "Figma \u2192 Code",
+  "/agent": "Agent Workflow",
   "/knowledge": "Knowledge Base",
 };
 
@@ -25,7 +26,6 @@ export function TopBar({ onToggleSidebar, onToggleRightPanel }: TopBarProps) {
         <button
           onClick={onToggleSidebar}
           className="rounded-md p-1.5 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-          title="Toggle Sidebar"
         >
           <PanelLeft className="h-4 w-4" />
         </button>
@@ -34,7 +34,6 @@ export function TopBar({ onToggleSidebar, onToggleRightPanel }: TopBarProps) {
       <button
         onClick={onToggleRightPanel}
         className="rounded-md p-1.5 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-        title="Toggle Panel"
       >
         <PanelRight className="h-4 w-4" />
       </button>

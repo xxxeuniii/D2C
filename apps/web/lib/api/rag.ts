@@ -1,13 +1,5 @@
 import { client } from "./client";
-
-export interface RAGDocument {
-  id: string;
-  name: string;
-  type: "document" | "folder";
-  size?: string;
-  updatedAt: string;
-  status: "ready" | "processing" | "error";
-}
+import { RAGDocument } from "@/types";
 
 export interface UploadDocumentParams {
   file: File;
@@ -39,10 +31,7 @@ export async function deleteDocument(id: string): Promise<void> {
 export async function searchDocuments(
   query: string,
   topK: number = 5
-): Promise<RAGDocument[]> {
-  const response = await client.post<RAGDocument[]>("/rag/search", {
-    query,
-    topK,
-  });
+): Promise<{ documents: RAGDocument[]; scores: number[] }> {
+  const response = await client.post("/rag/search", { query, topK });
   return response.data;
 }

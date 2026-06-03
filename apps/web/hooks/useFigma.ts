@@ -5,37 +5,48 @@ import { useFigmaStore } from "@/lib/store/figmaStore";
 import { analyzeFigmaFile, getFigmaAnalysisStatus } from "@/lib/api/figma";
 
 export function useFigma() {
-  const { analysis, setAnalysis, isLoading, setLoading, error, setError } =
-    useFigmaStore();
-  const [taskId, setTaskId] = useState<string | null>(null);
+  const {
+    analysis,
+    setAnalysis,
+    isLoading,
+    setLoading,
+    error,
+    setError,
+    figmaToken,
+  } = useFigmaStore();
 
   const analyze = useCallback(
-    async (url: string, framework: string, componentLib: string) => {
+    async (url: string, framework: string) => {
+      if (!figmaToken) {
+        setError("Please configure your Figma token in Settings first");
+        return;
+      }
+
       setLoading(true);
       setError(null);
 
       try {
-        const result = await analyzeFigmaFile({ url, framework, componentLib });
+        const result = await analyzeFigmaFile({
+          url,
+          framework,
+          token: figmaToken,
+        });
 
         if (result.status === "error") {
           setError(result.error || "Analysis failed");
           return;
         }
 
-        setTaskId(result.taskId);
-
-        // 如果分析已完成，直接设置结果
         if (result.status === "completed") {
           setAnalysis(result);
           setLoading(false);
           return;
         }
 
-        // 轮询获取状态
+        // 轮询状态
         const pollInterval = setInterval(async () => {
           try {
             const status = await getFigmaAnalysisStatus(result.taskId);
-
             if (status.status === "completed") {
               clearInterval(pollInterval);
               setAnalysis(status);
@@ -44,17 +55,16 @@ export function useFigma() {
               clearInterval(pollInterval);
               setError(status.error || "Analysis failed");
             }
-          } catch (err) {
+          } catch {
             clearInterval(pollInterval);
             setError("Failed to get analysis status");
           }
         }, 2000);
 
-        // 30秒超时
         setTimeout(() => {
           clearInterval(pollInterval);
           if (!analysis) {
-            setError("Analysis timeout");
+            setError("Analysis timeout (30s)");
             setLoading(false);
           }
         }, 30000);
@@ -63,13 +73,8 @@ export function useFigma() {
         setLoading(false);
       }
     },
-    [setLoading, setError, setAnalysis, analysis]
+    [figmaToken, setLoading, setError, setAnalysis, analysis]
   );
 
-  return {
-    analyze,
-    isLoading,
-    error,
-    analysis,
-  };
+  return { analyze, isLoading, error, analysis };
 }

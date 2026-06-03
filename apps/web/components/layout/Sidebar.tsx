@@ -3,7 +3,7 @@
 import { cn } from "@/lib/utils/cn";
 import { usePathname, useRouter } from "next/navigation";
 import { Tooltip } from "@/components/ui/tooltip";
-import { Figma, Database } from "lucide-react";
+import { Figma, Database, Wrench } from "lucide-react";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -11,6 +11,7 @@ interface SidebarProps {
 
 const navItems = [
   { icon: Figma, label: "Figma \u2192 Code", path: "/figma2code" },
+  { icon: Wrench, label: "Agent Workflow", path: "/agent" },
   { icon: Database, label: "Knowledge Base", path: "/knowledge" },
 ];
 

@@ -1,11 +1,11 @@
-"""D2C Agent Service"""
+"""D2C RAG Worker - 文档向量化 & 检索增强"""
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI(
-    title="D2C Agent",
-    description="AI Agent Service for Design to Code",
+    title="D2C RAG Worker",
+    description="Document indexing and embedding service",
     version="0.1.0",
 )
 
@@ -20,12 +20,13 @@ app.add_middleware(
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "service": "D2C Agent"}
+    return {"status": "ok", "service": "D2C RAG Worker"}
 
 
-@app.post("/api/agent/run")
-async def agent_run():
-    return {"message": "Agent run endpoint"}
+@app.post("/api/rag/embed")
+async def embed_document():
+    """向量化文档（可接入 OpenAI Embedding / 本地模型）"""
+    return {"status": "ok", "chunks": 0}
 
 
 if __name__ == "__main__":
