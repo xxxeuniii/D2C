@@ -1,0 +1,322 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================
+   CSS Variables Token System
+   ============================================ */
+
+:root {
+  /* --- Colors - Background --- */
+  --color-bg-base: #0F1117;
+  --color-bg-surface: #1A1D27;
+  --color-bg-elevated: #252836;
+  --color-bg-overlay: rgba(0, 0, 0, 0.6);
+
+  /* --- Colors - Brand --- */
+  --color-brand-primary: #4F6EF7;
+  --color-brand-primary-hover: #6B85F9;
+  --color-brand-primary-active: #3D5DE5;
+  --color-brand-secondary: #A78BFA;
+  --color-brand-accent: #34D399;
+
+  /* --- Colors - Text --- */
+  --color-text-primary: #EAECF0;
+  --color-text-secondary: #9CA3AF;
+  --color-text-tertiary: #6B7280;
+  --color-text-inverse: #0F1117;
+
+  /* --- Colors - Border --- */
+  --color-border: rgba(255, 255, 255, 0.08);
+  --color-border-strong: rgba(255, 255, 255, 0.14);
+  --color-border-focus: rgba(79, 110, 247, 0.4);
+
+  /* --- Colors - Status --- */
+  --color-status-success: #34D399;
+  --color-status-warning: #FBBF24;
+  --color-status-error: #F87171;
+  --color-status-info: #60A5FA;
+
+  /* --- Colors - Code --- */
+  --color-code-bg: #1E1E2E;
+  --color-code-header: #181825;
+
+  /* --- Font Family --- */
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+
+  /* --- Font Size --- */
+  --text-xs: 0.75rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1rem;
+  --text-xl: 1.125rem;
+  --text-2xl: 1.25rem;
+  --text-3xl: 1.5rem;
+
+  /* --- Spacing --- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-10: 2.5rem;
+  --space-12: 3rem;
+
+  /* --- Border Radius --- */
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+  --radius-2xl: 1rem;
+  --radius-full: 9999px;
+
+  /* --- Shadows --- */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.4);
+
+  /* --- Layout --- */
+  --sidebar-width: 220px;
+  --sidebar-collapsed-width: 48px;
+  --rightpanel-width: 320px;
+  --topbar-height: 48px;
+
+  /* --- Transition --- */
+  --transition-fast: 150ms ease;
+  --transition-base: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* --- Z-Index --- */
+  --z-sidebar: 40;
+  --z-topbar: 50;
+  --z-overlay: 60;
+  --z-modal: 70;
+  --z-toast: 80;
+}
+
+/* ============================================
+   Base Styles
+   ============================================ */
+
+@layer base {
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: var(--color-bg-base);
+    color: var(--color-text-primary);
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  a {
+    color: var(--color-brand-primary);
+    text-decoration: none;
+  }
+
+  a:hover {
+    color: var(--color-brand-primary-hover);
+  }
+
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+  }
+}
+
+/* ============================================
+   Component Layer
+   ============================================ */
+
+@layer components {
+  .glass-surface {
+    background: rgba(26, 29, 39, 0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--color-border);
+  }
+
+  .card {
+    background: var(--color-bg-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+  }
+
+  .card-elevated {
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+  }
+
+  .input-base {
+    background: var(--color-bg-base);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    color: var(--color-text-primary);
+    font-size: var(--text-sm);
+    padding: 0.5rem 0.75rem;
+    transition: border-color var(--transition-fast);
+  }
+
+  .input-base:focus {
+    outline: none;
+    border-color: var(--color-brand-primary);
+    box-shadow: 0 0 0 2px var(--color-border-focus);
+  }
+
+  .input-base::placeholder {
+    color: var(--color-text-tertiary);
+  }
+
+  .code-font {
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+  }
+}
+
+/* ============================================
+   Utility Layer
+   ============================================ */
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* ============================================
+   Monaco Editor Overrides
+   ============================================ */
+
+.monaco-editor {
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.monaco-editor .margin {
+  background: var(--color-code-bg) !important;
+}
+
+/* ============================================
+   Markdown Styles
+   ============================================ */
+
+.markdown-body {
+  color: var(--color-text-primary);
+  font-size: var(--text-sm);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+.markdown-body h1,
+.markdown-body h2,
+.markdown-body h3,
+.markdown-body h4 {
+  color: var(--color-text-primary);
+  font-weight: 600;
+  margin-top: 1.5em;
+  margin-bottom: 0.5em;
+}
+
+.markdown-body h1 { font-size: var(--text-xl); }
+.markdown-body h2 { font-size: var(--text-lg); }
+.markdown-body h3 { font-size: var(--text-base); }
+
+.markdown-body p {
+  margin-bottom: 0.75em;
+}
+
+.markdown-body ul,
+.markdown-body ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.75em;
+}
+
+.markdown-body li {
+  margin-bottom: 0.25em;
+}
+
+.markdown-body code {
+  background: rgba(79, 110, 247, 0.12);
+  color: var(--color-brand-primary);
+  padding: 0.15em 0.4em;
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+}
+
+.markdown-body pre {
+  margin: 0;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.markdown-body pre code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  border-radius: 0;
+}
+
+.markdown-body table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 0.75em;
+}
+
+.markdown-body th,
+.markdown-body td {
+  border: 1px solid var(--color-border);
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.markdown-body th {
+  background: var(--color-bg-elevated);
+  font-weight: 600;
+}
+
+.markdown-body blockquote {
+  border-left: 3px solid var(--color-brand-primary);
+  padding-left: 1em;
+  margin-left: 0;
+  color: var(--color-text-secondary);
+}
