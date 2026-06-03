@@ -1,10 +1,13 @@
 """
-Agent 1: 数据清洗（生产级：Python 代码直接操作 JSON）
-不用 LLM！用确定性的 Python 代码处理。
+Agent 1: 数据清洗（Python 代码兜底 + LLM 语义增强）
+核心逻辑用确定性的 Python 代码保证正确性，
+LLM 在规则引擎输出基础上补充语义理解，失败时安全降级。
 """
 import json
 import time
 from typing import Optional
+from langchain.schema import HumanMessage
+from services.llm import llm
 
 # 需要移除的顶层字段
 TOP_LEVEL_REMOVE = {
@@ -260,3 +263,162 @@ def clean_figma_data(raw_data: str | dict) -> dict:
         "cleanedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "tree": cleaned,
     }
+
+
+# ============================================
+# LLM 辅助增强：在规则引擎输出的基础上补充语义理解
+# 失败时安全降级，不影响基础清洗结果
+# ============================================
+
+def _collect_text_nodes(node: dict, texts: list) -> None:
+    """递归收集所有 TEXT 节点信息"""
+    if node.get("type") == "TEXT" and node.get("text"):
+        texts.append({
+            "name": node.get("name", ""),
+            "text": node.get("text", ""),
+            "fontSize": node.get("fontSize"),
+            "fontWeight": node.get("fontWeight"),
+        })
+    for child in node.get("children", []):
+        _collect_text_nodes(child, texts)
+
+
+def _collect_colors(node: dict, colors: list) -> None:
+    """递归收集所有颜色值"""
+    for key in ("backgroundColor", "color", "borderColor"):
+        if node.get(key):
+            colors.append({"name": node.get("name", ""), "role": key, "value": node[key]})
+    for child in node.get("children", []):
+        _collect_colors(child, colors)
+
+
+def _collect_layout_nodes(node: dict, layouts: list, path: str = "") -> None:
+    """递归收集布局节点信息"""
+    current_path = f"{path}/{node.get('name', '')}" if path else node.get("name", "")
+    if node.get("layoutMode") or node.get("display") == "flex":
+        layouts.append({
+            "name": node.get("name", ""),
+            "path": current_path,
+            "layoutMode": node.get("layoutMode"),
+            "flexDirection": node.get("flexDirection"),
+            "width": node.get("width"),
+            "height": node.get("height"),
+            "childrenCount": len(node.get("children", [])),
+            "childrenNames": [c.get("name", "") for c in node.get("children", [])[:10]],
+        })
+    for child in node.get("children", []):
+        _collect_layout_nodes(child, layouts, current_path)
+
+
+def enhance_cleaned_data_with_llm(cleaned_data: dict) -> dict:
+    """
+    使用 LLM 对清洗后的数据进行语义增强。
+    增强内容包括：颜色语义化、文本分类、布局意图推断。
+    失败时返回原始数据，不抛异常。
+    """
+    try:
+        tree = cleaned_data.get("tree", cleaned_data)
+        if not tree:
+            return cleaned_data
+
+        # 收集分析素材
+        texts = []
+        _collect_text_nodes(tree, texts)
+
+        colors = []
+        _collect_colors(tree, colors)
+
+        layouts = []
+        _collect_layout_nodes(tree, layouts)
+
+        # 构造 Prompt
+        prompt = f"""你是一个设计系统专家。分析以下 Figma 设计稿的清洗数据，补充语义信息。
+
+## 颜色信息:
+{json.dumps(colors[:30], ensure_ascii=False, indent=2)}
+
+## 文本信息:
+{json.dumps(texts[:20], ensure_ascii=False, indent=2)}
+
+## 布局结构:
+{json.dumps(layouts[:20], ensure_ascii=False, indent=2)}
+
+## 请输出 JSON，包含以下字段:
+- colorTokens: 将颜色语义化为 CSS 变量名。识别主色(--color-primary)、背景色(--bg-surface, --bg-elevated)、文字色(--text-primary, --text-secondary)、边框色(--border-default)、错误色等。value 是原始色值，token 是建议的 CSS 变量名。
+- textRoles: 将文本按语义角色分类。title/heading/body/placeholder/helper/cta/label。输出格式: {{"text": "原文", "role": "角色"}}
+- layoutIntent: 对主要布局节点推断意图。header/sidebar/content/footer/card-grid/form/hero 等。
+
+只输出 JSON，不要任何解释。"""
+
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content.strip()
+
+        # 提取 JSON（处理可能的 markdown 代码块包裹）
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        enhancement = json.loads(content)
+
+        # 将增强结果附加到清洗数据
+        cleaned_data["llmEnhancement"] = {
+            "colorTokens": enhancement.get("colorTokens", []),
+            "textRoles": enhancement.get("textRoles", []),
+            "layoutIntent": enhancement.get("layoutIntent", []),
+            "enhancedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+
+        # 颜色 Token 化：在 tree 中标记语义颜色
+        _apply_color_tokens(tree, enhancement.get("colorTokens", []))
+
+        # 文本角色标记：在 tree 中标记文本角色
+        _apply_text_roles(tree, enhancement.get("textRoles", []))
+
+        return cleaned_data
+
+    except Exception as e:
+        # 安全降级：LLM 失败时保留原始清洗结果
+        cleaned_data["llmEnhancement"] = {"error": str(e), "status": "fallback"}
+        return cleaned_data
+
+
+def _apply_color_tokens(node: dict, color_tokens: list) -> None:
+    """将 LLM 推断的颜色 Token 应用到节点树中"""
+    token_map = {}
+    for ct in color_tokens:
+        if isinstance(ct, dict):
+            token_map[ct.get("value", "")] = ct.get("token", "")
+
+    if not token_map:
+        return
+
+    # 递归遍历树，替换颜色值为 CSS 变量引用
+    def _walk(n):
+        for key in ("backgroundColor", "color", "borderColor"):
+            if n.get(key) and n[key] in token_map:
+                token = token_map[n[key]]
+                n[f"{key}Token"] = token
+        for child in n.get("children", []):
+            _walk(child)
+
+    _walk(node)
+
+
+def _apply_text_roles(node: dict, text_roles: list) -> None:
+    """将 LLM 推断的文本角色应用到节点树中"""
+    role_map = {}
+    for tr in text_roles:
+        if isinstance(tr, dict):
+            role_map[tr.get("text", "")] = tr.get("role", "")
+
+    if not role_map:
+        return
+
+    def _walk(n):
+        if n.get("text") and n["text"] in role_map:
+            n["textRole"] = role_map[n["text"]]
+        for child in n.get("children", []):
+            _walk(child)
+
+    _walk(node)

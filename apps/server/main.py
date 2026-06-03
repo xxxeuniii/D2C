@@ -9,8 +9,8 @@ D2C Backend - 多 Agent 协同流水线 (生产级)
   routers/          - API 路由层 (health, pipeline, rag, figma)
 
 5 个 Agent，Chain 串联:
-  Agent 1: 数据清洗 → Python 代码直接操作 JSON（不用 LLM）
-  Agent 2: 结构化转换 → Python 规则引擎 Figma→DSL（不用 LLM）
+  Agent 1: 数据清洗 → Python 代码兜底 + LLM 语义增强（颜色/文本/布局）
+  Agent 2: 结构化转换 → Python 规则引擎兜底 + LLM 语义增强（组件/Props/关系/Token/交互）
   Agent 3: 知识检索 → ChromaDB RAG 检索组件文档
   Agent 4: 代码生成 → DeepSeek-V3 生成代码
   Agent 5: 测试验证 → AST + LLM 双重验证
@@ -50,8 +50,8 @@ if __name__ == "__main__":
 ╔══════════════════════════════════════════════════════╗
 ║     D2C Backend - Multi-Agent Pipeline (Production)  ║
 ║                                                      ║
-║  Agent 1: 数据清洗 → Python 代码 (不用 LLM)          ║
-║  Agent 2: 结构化转换 → Python 规则引擎 (不用 LLM)     ║
+║  Agent 1: 数据清洗 → Python + LLM 语义增强           ║
+║  Agent 2: 结构化转换 → Python + LLM 语义增强         ║
 ║  Agent 3: 知识检索 → ChromaDB RAG                    ║
 ║  Agent 4: 代码生成 → DeepSeek-V3 LLM                 ║
 ║  Agent 5: 测试验证 → AST + LLM 双重检查              ║

@@ -14,8 +14,8 @@ async def health():
         "status": "ok",
         "service": "D2C Backend - Multi-Agent Pipeline (Production)",
         "agents": [
-            "Agent 1: 数据清洗 (Python 代码, 不用 LLM)",
-            "Agent 2: 结构化转换 (Python 规则引擎, 不用 LLM)",
+            "Agent 1: 数据清洗 (Python 代码 + LLM 语义增强)",
+            "Agent 2: 结构化转换 (Python 规则引擎 + LLM 语义增强)",
             "Agent 3: 知识检索 (ChromaDB RAG)",
             "Agent 4: 代码生成 (DeepSeek-V3 LLM)",
             "Agent 5: 测试验证 (AST + LLM 双重检查)",

@@ -1,10 +1,13 @@
 """
-Agent 2: 结构化转换（生产级：Python 规则引擎）
-不用 LLM！用确定性的 Python 代码将 Figma 节点转为 DSL。
+Agent 2: 结构化转换（Python 规则引擎兜底 + LLM 语义增强）
+核心转换用确定性的 Python 规则引擎保证正确性，
+LLM 在 DSL 基础上补充组件推断、Props 提取、关系识别、Token 化、交互逻辑。
 """
 import json
 import time
 from typing import Optional
+from langchain.schema import HumanMessage
+from services.llm import llm
 
 # 类型映射
 TYPE_MAP = {
@@ -141,3 +144,226 @@ def convert_to_dsl(cleaned_data: dict, framework: str, component_lib: str) -> di
         "convertedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
         "components": components,
     }
+
+
+# ============================================
+# LLM 辅助增强：在规则引擎输出的 DSL 基础上补充语义理解
+# 失败时安全降级，保留基础 DSL
+# ============================================
+
+def _collect_dsl_components(components: list, result: list, path: str = "") -> None:
+    """递归收集 DSL 组件信息（用于 LLM 分析）"""
+    for comp in components:
+        current_path = f"{path}/{comp.get('name', '')}" if path else comp.get("name", "")
+        result.append({
+            "name": comp.get("name", ""),
+            "type": comp.get("type", ""),
+            "path": current_path,
+            "styles": comp.get("styles", {}),
+            "props": comp.get("props", {}),
+            "childrenCount": len(comp.get("children", [])),
+            "childrenNames": [c.get("name", "") for c in comp.get("children", [])[:10]],
+            "childrenTypes": [c.get("type", "") for c in comp.get("children", [])[:10]],
+        })
+        if comp.get("children"):
+            _collect_dsl_components(comp["children"], result, current_path)
+
+
+def _collect_style_values(components: list, result: dict) -> None:
+    """递归收集所有样式值，用于 Token 化分析"""
+    for comp in components:
+        styles = comp.get("styles", {})
+        for key, value in styles.items():
+            if isinstance(value, (int, float, str)):
+                k = f"{key}:{value}"
+                if k not in result:
+                    result[k] = {"property": key, "value": value, "count": 0, "usages": []}
+                result[k]["count"] += 1
+                result[k]["usages"].append(comp.get("name", ""))
+        if comp.get("children"):
+            _collect_style_values(comp["children"], result)
+
+
+def enhance_dsl_with_llm(dsl: dict, framework: str, component_lib: str) -> dict:
+    """
+    使用 LLM 对 DSL 进行语义增强。
+    增强内容包括：组件类型推断、Props 提取、关系识别、样式 Token 化、交互逻辑推断。
+    失败时返回原始 DSL，不抛异常。
+    """
+    try:
+        components = dsl.get("components", [])
+        if not components:
+            return dsl
+
+        # 收集分析素材
+        flat_comps = []
+        _collect_dsl_components(components, flat_comps)
+
+        style_values = {}
+        _collect_style_values(components, style_values)
+        # 取出现次数 > 1 的样式值（有复用价值）
+        repeated_styles = [
+            {"property": v["property"], "value": v["value"], "count": v["count"],
+             "usages": v["usages"][:5]}
+            for v in style_values.values() if v["count"] > 1
+        ][:30]
+
+        # 找出规则引擎未识别的组件（type 为 container/box 的节点）
+        unrecognized = [c for c in flat_comps if c["type"] in ("container", "box")][:20]
+
+        # 构造 Prompt
+        prompt = f"""你是一个前端架构专家和设计系统专家。分析以下从 Figma 转换的 DSL，补充语义信息。
+
+## 目标框架: {framework}
+## 组件库: {component_lib}
+
+## DSL 组件列表:
+{json.dumps(flat_comps[:50], ensure_ascii=False, indent=2)}
+
+## 规则引擎未识别的组件（需要 LLM 推断类型）:
+{json.dumps(unrecognized, ensure_ascii=False, indent=2)}
+
+## 重复出现的样式值（可用于 Token 化）:
+{json.dumps(repeated_styles, ensure_ascii=False, indent=2)}
+
+## 请输出 JSON，包含以下字段:
+
+1. componentTypes: 对未识别组件推断具体类型。根据子结构判断（如"一个 TEXT+一个 RECTANGLE+圆角=button"）。格式: [{{"name": "组件名", "inferredType": "推断类型", "reason": "推断依据"}}]
+
+2. enhancedProps: 为组件补充 Props。分析上下文推断 label/placeholder/disabled/options 等。格式: [{{"name": "组件名", "props": {{"key": "value"}}}}]
+
+3. relationships: 识别组件间语义关系。格式: [{{"type": "formItem/labelInput/tableRow/modalLayout/formGroup/tabPanel", "members": ["组件名1","组件名2"], "description": "关系描述"}}]
+
+4. designTokens: 将重复样式抽象为 Design Token。格式: [{{"token": "--token-name", "value": "样式值", "category": "color/spacing/fontSize/borderRadius/shadow", "usages": ["组件名"]}}]
+
+5. interactions: 推断交互逻辑。格式: [{{"trigger": "组件名", "action": "onClick/onChange/onSubmit/toggle", "description": "交互描述", "relatedComponents": ["关联组件"]}}]
+
+6. responsiveHints: 响应式布局建议。格式: [{{"target": "组件名", "breakpoint": "mobile/tablet", "suggestion": "具体建议"}}]
+
+只输出 JSON，不要任何解释。"""
+
+        response = llm.invoke([HumanMessage(content=prompt)])
+        content = response.content.strip()
+
+        # 提取 JSON
+        if "```json" in content:
+            content = content.split("```json")[1].split("```")[0].strip()
+        elif "```" in content:
+            content = content.split("```")[1].split("```")[0].strip()
+
+        enhancement = json.loads(content)
+
+        # 将增强结果附加到 DSL
+        dsl["llmEnhancement"] = {
+            "componentTypes": enhancement.get("componentTypes", []),
+            "enhancedProps": enhancement.get("enhancedProps", []),
+            "relationships": enhancement.get("relationships", []),
+            "designTokens": enhancement.get("designTokens", []),
+            "interactions": enhancement.get("interactions", []),
+            "responsiveHints": enhancement.get("responsiveHints", []),
+            "enhancedAt": time.strftime("%Y-%m-%dT%H:%M:%S"),
+        }
+
+        # 应用组件类型推断到 DSL 树
+        _apply_component_types(components, enhancement.get("componentTypes", []))
+
+        # 应用增强 Props 到 DSL 树
+        _apply_enhanced_props(components, enhancement.get("enhancedProps", []))
+
+        # 应用关系标注到 DSL 树
+        _apply_relationships(components, enhancement.get("relationships", []))
+
+        return dsl
+
+    except Exception as e:
+        # 安全降级：LLM 失败时保留原始 DSL
+        dsl["llmEnhancement"] = {"error": str(e), "status": "fallback"}
+        return dsl
+
+
+def _apply_component_types(components: list, type_hints: list) -> None:
+    """将 LLM 推断的组件类型应用到 DSL 树中"""
+    type_map = {}
+    for hint in type_hints:
+        if isinstance(hint, dict):
+            type_map[hint.get("name", "")] = {
+                "inferredType": hint.get("inferredType", ""),
+                "reason": hint.get("reason", ""),
+            }
+
+    if not type_map:
+        return
+
+    def _walk(comps):
+        for comp in comps:
+            name = comp.get("name", "")
+            if name in type_map:
+                hint = type_map[name]
+                # 只更新规则引擎无法识别的类型
+                if comp.get("type") in ("container", "box"):
+                    comp["originalType"] = comp["type"]
+                    comp["type"] = hint["inferredType"]
+                    comp["typeInferenceReason"] = hint["reason"]
+            if comp.get("children"):
+                _walk(comp["children"])
+
+    _walk(components)
+
+
+def _apply_enhanced_props(components: list, enhanced_props: list) -> None:
+    """将 LLM 推断的 Props 应用到 DSL 树中"""
+    props_map = {}
+    for ep in enhanced_props:
+        if isinstance(ep, dict):
+            props_map[ep.get("name", "")] = ep.get("props", {})
+
+    if not props_map:
+        return
+
+    def _walk(comps):
+        for comp in comps:
+            name = comp.get("name", "")
+            if name in props_map:
+                existing = comp.get("props", {})
+                existing.update(props_map[name])
+                comp["props"] = existing
+                comp["propsEnhanced"] = True
+            if comp.get("children"):
+                _walk(comp["children"])
+
+    _walk(components)
+
+
+def _apply_relationships(components: list, relationships: list) -> None:
+    """将 LLM 识别的关系应用到 DSL 树中"""
+    if not relationships:
+        return
+
+    # 构建组件名到引用的映射
+    ref_map = {}
+
+    def _build_ref_map(comps):
+        for comp in comps:
+            ref_map[comp.get("name", "")] = comp
+            if comp.get("children"):
+                _build_ref_map(comp["children"])
+
+    _build_ref_map(components)
+
+    # 为涉及的组件添加关系标注
+    for rel in relationships:
+        if not isinstance(rel, dict):
+            continue
+        rel_type = rel.get("type", "")
+        members = rel.get("members", [])
+        desc = rel.get("description", "")
+        for member_name in members:
+            if member_name in ref_map:
+                comp = ref_map[member_name]
+                if "semanticRelations" not in comp:
+                    comp["semanticRelations"] = []
+                comp["semanticRelations"].append({
+                    "type": rel_type,
+                    "description": desc,
+                    "relatedTo": [m for m in members if m != member_name],
+                })
