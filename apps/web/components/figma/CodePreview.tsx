@@ -13,7 +13,7 @@ const MonacoEditor = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex h-full items-center justify-center bg-[#1E1E2E] text-text-tertiary">
-        <p className="text-sm">Loading editor...</p>
+        <p className="text-sm">加载编辑器中...</p>
       </div>
     ),
   }
@@ -76,15 +76,15 @@ export function CodePreview() {
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
         <div className="flex items-center gap-1">
           <Code2 className="h-3.5 w-3.5 text-text-tertiary" />
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-            Code
+          <h3 className="text-xs font-semibold tracking-wider text-text-tertiary">
+            代码
           </h3>
         </div>
         <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
             className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-            title="Copy code"
+            title="复制代码"
           >
             {copied ? (
               <Check className="h-3.5 w-3.5 text-status-success" />
@@ -95,7 +95,7 @@ export function CodePreview() {
           <button
             onClick={handleDownload}
             className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-            title="Download"
+            title="下载"
           >
             <Download className="h-3.5 w-3.5" />
           </button>
@@ -129,7 +129,7 @@ export function CodePreview() {
             height="100%"
             language={currentFile.language}
             value={currentFile.code}
-            theme="vs-dark"
+            theme="vs"
             options={{
               readOnly: false,
               minimap: { enabled: false },
@@ -144,12 +144,12 @@ export function CodePreview() {
             }}
           />
         ) : (
-          <div className="flex h-full items-center justify-center bg-[#1E1E2E] text-text-tertiary">
+          <div className="flex h-full items-center justify-center bg-bg-base text-text-tertiary">
             <div className="text-center">
               <Code2 className="mx-auto mb-2 h-8 w-8 opacity-30" />
-              <p className="text-sm">No generated code yet</p>
+              <p className="text-sm">暂无生成代码</p>
               <p className="text-xs mt-1">
-                Import a Figma design to generate code
+                导入 Figma 设计稿以生成代码
               </p>
             </div>
           </div>
@@ -159,14 +159,14 @@ export function CodePreview() {
       {/* Footer */}
       <div className="flex items-center justify-between border-t border-border bg-bg-surface px-3 py-1">
         <span className="text-xs text-text-tertiary">
-          {currentFile ? `${currentFile.language.toUpperCase()} · ${totalLines} lines` : "No file"}
+          {currentFile ? `${currentFile.language.toUpperCase()} · ${totalLines} 行` : "无文件"}
         </span>
         <button
           className="flex items-center gap-1 text-xs text-text-tertiary hover:text-text-secondary transition-colors"
-          title="Apply to project"
+          title="应用到项目"
         >
           <ExternalLink className="h-3 w-3" />
-          Apply to project
+          应用到项目
         </button>
       </div>
     </div>

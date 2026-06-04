@@ -15,7 +15,7 @@ export function RightPanel({ open, onClose }: RightPanelProps) {
     <aside className="flex w-[320px] flex-shrink-0 flex-col border-l border-border bg-bg-surface animate-slide-in-right">
       {/* Header */}
       <div className="flex h-10 items-center justify-between border-b border-border px-3">
-        <h3 className="text-sm font-medium text-text-primary">Context</h3>
+        <h3 className="text-sm font-medium text-text-primary">上下文</h3>
         <button
           onClick={onClose}
           className="rounded-md p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
@@ -42,9 +42,9 @@ export function RightPanel({ open, onClose }: RightPanelProps) {
               />
             </svg>
           </div>
-          <p className="text-sm text-text-secondary">No context selected</p>
+          <p className="text-sm text-text-secondary">未选择上下文</p>
           <p className="mt-1 text-xs text-text-tertiary">
-            Select a file or component to view details
+            选择一个文件或组件以查看详情
           </p>
         </div>
       </div>

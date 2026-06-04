@@ -9,13 +9,15 @@ import { Link, Loader2, Code2 } from "lucide-react";
 
 type Framework = "vue3" | "react" | "nextjs";
 
+const DEFAULT_FIGMA_URL = "https://www.figma.com/design/dEDv2fBxzJ9Gbsbhv2XSZP/Untitled?node-id=0-1&p=f&t=b5hI6no6Iv5Kzydx-0";
+
 export function FigmaImporter() {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(DEFAULT_FIGMA_URL);
   const [framework, setFramework] = useState<Framework>("react");
   const { analyze, isLoading, error } = useFigma();
 
   const isValidUrl = url.trim().match(
-    /^https?:\/\/(www\.)?figma\.com\/(file|design)\/.+/
+    /^https?:\/\/(www\.)?figma\.com\/(file|design|proto)\/.+/
   );
 
   const handleSubmit = async (e: FormEvent) => {
@@ -37,10 +39,10 @@ export function FigmaImporter() {
           <Code2 className="h-7 w-7 text-brand-primary" />
         </div>
         <h2 className="text-xl font-semibold text-text-primary">
-          Figma to Code
+          设计稿转代码
         </h2>
         <p className="mt-2 text-sm text-text-secondary">
-          Paste a Figma design link to generate production-ready code
+          粘贴 Figma 设计稿链接，自动生成生产级前端代码
         </p>
       </div>
 
@@ -48,7 +50,7 @@ export function FigmaImporter() {
         {/* URL Input */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-            Figma URL
+            Figma 链接
           </label>
           <div className="relative">
             <Link className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
@@ -69,7 +71,7 @@ export function FigmaImporter() {
         {/* Framework Selection */}
         <div>
           <label className="mb-1.5 block text-sm font-medium text-text-secondary">
-            Target Framework
+            目标框架
           </label>
           <div className="flex gap-2">
             {frameworks.map(({ key, label }) => (
@@ -96,10 +98,14 @@ export function FigmaImporter() {
           type="submit"
           className="w-full"
           size="lg"
-          disabled={!isValidUrl}
+          disabled={!isValidUrl || isLoading}
           isLoading={isLoading}
         >
-          {isLoading ? "Analyzing design..." : "Parse & Generate Code"}
+          {isLoading
+            ? "正在分析设计稿..."
+            : !isValidUrl
+              ? "请输入有效的 Figma 链接"
+              : "解析并生成代码"}
         </Button>
       </form>
     </div>

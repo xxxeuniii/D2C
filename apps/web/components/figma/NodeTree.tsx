@@ -63,7 +63,7 @@ export function NodeTree() {
   if (!analysis?.nodes) {
     return (
       <div className="flex h-full items-center justify-center p-4 text-center text-text-tertiary">
-        <p className="text-sm">No nodes available</p>
+        <p className="text-sm">暂无节点数据</p>
       </div>
     );
   }
@@ -72,8 +72,8 @@ export function NodeTree() {
     <div className="flex h-full flex-col">
       {/* Header */}
       <div className="border-b border-border px-3 py-2.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-          Node Tree
+        <h3 className="text-xs font-semibold tracking-wider text-text-tertiary">
+          节点树
         </h3>
       </div>
 

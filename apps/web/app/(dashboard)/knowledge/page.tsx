@@ -40,7 +40,7 @@ export default function KnowledgePage() {
     const allowedTypes = [".pdf", ".md", ".txt", ".json", ".docx"];
     const ext = "." + file.name.split(".").pop()?.toLowerCase();
     if (!allowedTypes.includes(ext)) {
-      alert("Supported formats: PDF, Markdown, TXT, JSON, DOCX");
+      alert("支持的格式：PDF、Markdown、TXT、JSON、DOCX");
       return;
     }
 
@@ -83,9 +83,9 @@ export default function KnowledgePage() {
 
   const statusBadge = (status: RAGDocument["status"]) => {
     const config = {
-      ready: { variant: "success" as const, label: "Indexed" },
-      processing: { variant: "warning" as const, label: "Indexing..." },
-      error: { variant: "error" as const, label: "Failed" },
+      ready: { variant: "success" as const, label: "已索引" },
+      processing: { variant: "warning" as const, label: "索引中..." },
+      error: { variant: "error" as const, label: "失败" },
     };
     const c = config[status];
     return <Badge variant={c.variant}>{c.label}</Badge>;
@@ -97,10 +97,10 @@ export default function KnowledgePage() {
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-text-primary">
-            Knowledge Base
+            知识库
           </h1>
           <p className="mt-1 text-sm text-text-secondary">
-            Upload design specs, coding standards, and component docs for RAG
+            上传设计规范、编码标准和组件文档，用于 RAG 检索增强
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -117,7 +117,7 @@ export default function KnowledgePage() {
             className="gap-2"
           >
             <Upload className="h-4 w-4" />
-            Upload Document
+            上传文档
           </Button>
         </div>
       </div>
@@ -125,9 +125,9 @@ export default function KnowledgePage() {
       {/* Stats */}
       <div className="mb-4 grid grid-cols-3 gap-3">
         {[
-          { label: "Total Docs", value: documents.length, icon: FileText },
-          { label: "Indexed", value: documents.filter((d) => d.status === "ready").length, icon: BookOpen },
-          { label: "Processing", value: documents.filter((d) => d.status === "processing").length, icon: Loader2 },
+          { label: "文档总数", value: documents.length, icon: FileText },
+          { label: "已索引", value: documents.filter((d) => d.status === "ready").length, icon: BookOpen },
+          { label: "处理中", value: documents.filter((d) => d.status === "processing").length, icon: Loader2 },
         ].map((stat) => (
           <div
             key={stat.label}
@@ -148,7 +148,7 @@ export default function KnowledgePage() {
       <div className="relative mb-4">
         <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
         <Input
-          placeholder="Search knowledge base..."
+          placeholder="搜索知识库..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="pl-10"
@@ -163,21 +163,21 @@ export default function KnowledgePage() {
               <FolderOpen className="mb-3 h-10 w-10 opacity-40" />
               <p className="text-sm">
                 {documents.length === 0
-                  ? "No documents yet"
-                  : "No matching documents"}
+                  ? "暂无文档"
+                  : "无匹配文档"}
               </p>
               <p className="mt-1 text-xs">
-                Upload design specs and coding standards to enable RAG
+                上传设计规范和编码标准以启用 RAG 检索增强
               </p>
             </div>
           ) : (
             <table className="w-full">
               <thead>
                 <tr className="border-b border-border text-left text-xs font-medium text-text-tertiary">
-                  <th className="px-4 py-2.5">Name</th>
-                  <th className="w-24 px-4 py-2.5">Size</th>
-                  <th className="w-32 px-4 py-2.5">Updated</th>
-                  <th className="w-24 px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">名称</th>
+                  <th className="w-24 px-4 py-2.5">大小</th>
+                  <th className="w-32 px-4 py-2.5">更新时间</th>
+                  <th className="w-24 px-4 py-2.5">状态</th>
                   <th className="w-12 px-4 py-2.5"></th>
                 </tr>
               </thead>

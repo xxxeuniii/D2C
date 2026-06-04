@@ -4,7 +4,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || "/api";
 
 const client: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
-  timeout: 30000,
+  timeout: 300000,  // 5 分钟超时（流水线包含 5 个 Agent 的 LLM 调用）
   headers: {
     "Content-Type": "application/json",
   },

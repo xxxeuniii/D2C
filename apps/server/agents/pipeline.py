@@ -9,7 +9,7 @@
     Chat 阶段：用户多轮对话迭代修改代码（Memory 记住对话历史）
 """
 import json
-from langchain.schema.runnable import RunnableLambda
+from langchain_core.runnables import RunnableLambda
 from agents.cleaner import clean_figma_data, enhance_cleaned_data_with_llm
 from agents.converter import convert_to_dsl, enhance_dsl_with_llm
 from agents.retriever import search_component_docs
@@ -100,8 +100,11 @@ def create_agent_pipeline():
         figma_raw = input_dict.get("figma_raw", "")
         framework = input_dict.get("framework", "react")
         component_lib = input_dict.get("componentLib", "element-plus")
+        session_id = input_dict.get("session_id", None)
 
-        result = orchestrator.run_pipeline(figma_raw, framework, component_lib)
+        result = orchestrator.run_pipeline(
+            figma_raw, framework, component_lib, session_id=session_id
+        )
 
         input_dict["generated_code"] = result.get("generated_code", "")
         input_dict["validation_result"] = result.get("validation_result", "")

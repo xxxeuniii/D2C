@@ -1,11 +1,16 @@
 """
-Agent 5: 测试验证（AST + LLM 双重检查）
+Agent 5: 测试验证（AST + LLM 双重检查）+ 反幻觉 API 验证
+
+Prompt 模板集中在 prompts/ 模块中管理。
 """
 import re
+import json
 from typing import List
-from langchain.tools import tool
-from langchain.schema import HumanMessage
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage
 from services.llm import code_llm
+from agents.anti_hallucination import run_hallucination_check
+from prompts.generation import build_code_review_prompt
 
 
 def _ast_syntax_check(code: str) -> List[str]:
@@ -67,7 +72,7 @@ def _ast_syntax_check(code: str) -> List[str]:
     if "eval(" in code:
         issues.append("ERROR: 使用了 eval(), 严重安全风险")
 
-    # 5. 空状态检查
+    # 5. 列表 key 检查
     if "return (" in code and "?.map" in code and "key={" not in code:
         issues.append("WARNING: 列表渲染中可能缺少 key 属性")
 
@@ -78,7 +83,7 @@ def _ast_syntax_check(code: str) -> List[str]:
 def validate_and_fix(code: str) -> str:
     """
     验证代码质量并自动修复问题。
-    AST 静态分析 + LLM 深度审查，双重保障。
+    AST 静态分析 + LLM 深度审查 + 反幻觉 API 验证，三重保障。
     """
     # 第一阶段: AST 静态分析
     ast_issues = _ast_syntax_check(code)
@@ -88,33 +93,49 @@ def validate_and_fix(code: str) -> str:
     else:
         ast_result = "## AST 静态分析发现的问题:\n" + "\n".join(f"- {i}" for i in ast_issues) + "\n"
 
-    # 第二阶段: LLM 深度审查
-    review_prompt = f"""检查以下代码并修复问题。
+    # 第二阶段: 反幻觉 API 验证（确定性，不用 LLM 审 LLM）
+    # 从上下文中获取组件文档和组件库信息
+    from agents.tools import get_pipeline_context
+    ctx = get_pipeline_context()
+    component_lib = ctx.get("componentLib", "element-plus")
 
-AST 静态分析结果:
-{ast_result}
+    # 尝试从 dsl_with_docs 中提取 componentDocs
+    component_docs = {}
+    dsl_with_docs_str = ctx.get("dsl_with_docs", "")
+    if dsl_with_docs_str:
+        try:
+            dsl_data = json.loads(dsl_with_docs_str)
+            component_docs = dsl_data.get("componentDocs", {})
+        except (json.JSONDecodeError, TypeError):
+            pass
 
-检查清单:
-- 组件库 API 用法是否正确
-- TypeScript 类型是否完整
-- 可访问性 (alt, aria-label, role)
-- 响应式设计 (是否使用相对单位)
-- 性能问题 (多余的 re-render, 大列表是否需要虚拟滚动)
+    hallucination_result = run_hallucination_check(code, component_docs, component_lib)
+    api_issues = hallucination_result.get("api_issues", [])
+    llm_review = hallucination_result.get("llm_review", None)  # ★ P1-2 修复：接入 LLM 交叉验证结果
 
-代码:
-```{'vue' if 'template' in code.lower() else 'tsx'}
-{code[:5000]}
-```
+    if not api_issues:
+        api_result = "PASSED: API 白名单验证通过（无幻觉属性）\n"
+    else:
+        api_result = "## API 幻觉检查发现的问题:\n"
+        for issue in api_issues:
+            api_result += f"- [{issue['severity']}] {issue['message']}\n"
+        # ★ P1-2 修复：将 LLM 交叉验证结果也包含进去
+        if llm_review:
+            api_result += f"\n### LLM 交叉验证结果:\n{llm_review}\n"
 
-如果代码没问题且 AST 已通过, 输出 "PASSED"。
-如果有问题, 输出:
-1. 问题列表
-2. 修复后的完整代码
-
-用中文回复。"""
+    # 第三阶段: LLM 深度审查
+    review_prompt = build_code_review_prompt(
+        code=code,
+        ast_result=ast_result,
+        api_result=api_result,
+    )
 
     response = code_llm.invoke([HumanMessage(content=review_prompt)])
 
-    # 合并 AST 和 LLM 结果
-    full_result = f"{'='*50}\nAST 静态分析:\n{'='*50}\n{ast_result}\n{'='*50}\nLLM 深度审查:\n{'='*50}\n{response.content}"
+    # 合并所有检查结果
+    full_result = (
+        f"{'='*50}\nAST 静态分析:\n{'='*50}\n{ast_result}\n"
+        f"{'='*50}\nAPI 幻觉检查:\n{'='*50}\n{api_result}\n"
+        f"{'='*50}\nLLM 深度审查:\n{'='*50}\n{response.content}"
+    )
     return full_result

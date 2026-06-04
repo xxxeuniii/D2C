@@ -1,9 +1,13 @@
 """
 ChromaDB 向量数据库服务
 """
+import os
 import chromadb
 from chromadb.utils import embedding_functions
 from config import SILICONFLOW_API_KEY, SILICONFLOW_BASE_URL, EMBEDDING_MODEL, CHROMA_PATH
+
+# 新版 chromadb 需要设置环境变量
+os.environ.setdefault("CHROMA_OPENAI_API_KEY", SILICONFLOW_API_KEY)
 
 # Embedding 函数
 sf_ef = embedding_functions.OpenAIEmbeddingFunction(

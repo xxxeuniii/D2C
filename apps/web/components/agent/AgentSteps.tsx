@@ -142,7 +142,7 @@ export function AgentSteps({ steps, isRunning, result, error }: AgentStepsProps)
                   {/* Input */}
                   {step.input && (
                     <div className="mt-2 rounded border border-border/50 bg-bg-base px-2.5 py-1.5">
-                      <span className="text-xs text-text-tertiary">Input:</span>
+                      <span className="text-xs text-text-tertiary">输入：</span>
                       <p className="mt-0.5 text-xs text-text-secondary font-mono line-clamp-2">
                         {step.input}
                       </p>
@@ -152,7 +152,7 @@ export function AgentSteps({ steps, isRunning, result, error }: AgentStepsProps)
                   {/* Output */}
                   {step.output && step.status === "completed" && (
                     <div className="mt-2 rounded border border-status-success/20 bg-status-success/5 px-2.5 py-1.5">
-                      <span className="text-xs text-status-success">Output:</span>
+                      <span className="text-xs text-status-success">输出：</span>
                       <p className="mt-0.5 text-xs text-text-secondary font-mono line-clamp-3 whitespace-pre-wrap">
                         {step.output}
                       </p>
@@ -162,7 +162,7 @@ export function AgentSteps({ steps, isRunning, result, error }: AgentStepsProps)
                   {/* Error */}
                   {step.output && step.status === "error" && (
                     <div className="mt-2 rounded border border-status-error/20 bg-status-error/5 px-2.5 py-1.5">
-                      <span className="text-xs text-status-error">Error:</span>
+                      <span className="text-xs text-status-error">错误：</span>
                       <p className="mt-0.5 text-xs text-status-error font-mono line-clamp-3">
                         {step.output}
                       </p>

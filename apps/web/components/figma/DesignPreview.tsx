@@ -14,14 +14,14 @@ export function DesignPreview() {
     <div className="flex h-full flex-col">
       {/* Toolbar */}
       <div className="flex items-center justify-between border-b border-border px-3 py-1.5">
-        <h3 className="text-xs font-semibold uppercase tracking-wider text-text-tertiary">
-          Preview
+        <h3 className="text-xs font-semibold tracking-wider text-text-tertiary">
+          预览
         </h3>
         <div className="flex items-center gap-1">
           <button
             onClick={() => setZoom((z) => Math.max(25, z - 10))}
             className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-            title="Zoom out"
+            title="缩小"
           >
             <ZoomOut className="h-3.5 w-3.5" />
           </button>
@@ -31,14 +31,14 @@ export function DesignPreview() {
           <button
             onClick={() => setZoom((z) => Math.min(200, z + 10))}
             className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-            title="Zoom in"
+            title="放大"
           >
             <ZoomIn className="h-3.5 w-3.5" />
           </button>
           <button
             onClick={() => setZoom(100)}
             className="rounded p-1 text-text-tertiary hover:bg-bg-elevated hover:text-text-secondary transition-colors"
-            title="Reset zoom"
+            title="重置缩放"
           >
             <RotateCw className="h-3.5 w-3.5" />
           </button>
@@ -50,15 +50,15 @@ export function DesignPreview() {
         {imageUrl ? (
           <img
             src={imageUrl}
-            alt="Figma design preview"
+            alt="Figma 设计稿预览"
             style={{ transform: `scale(${zoom / 100})`, transformOrigin: "center" }}
             className="max-w-full transition-transform duration-200"
           />
         ) : (
           <div className="text-center text-text-tertiary">
-            <p className="text-sm">No preview available</p>
+            <p className="text-sm">暂无预览</p>
             <p className="text-xs mt-1">
-              Preview will appear after analysis completes
+              分析完成后将显示预览
             </p>
           </div>
         )}

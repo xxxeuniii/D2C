@@ -2,12 +2,15 @@
 Agent 2: 结构化转换（Python 规则引擎兜底 + LLM 语义增强）
 核心转换用确定性的 Python 规则引擎保证正确性，
 LLM 在 DSL 基础上补充组件推断、Props 提取、关系识别、Token 化、交互逻辑。
+
+Prompt 模板集中在 prompts/enhancement.py 中管理。
 """
 import json
 import time
 from typing import Optional
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from services.llm import llm
+from prompts.enhancement import build_converter_enhancement_prompt
 
 # 类型映射
 TYPE_MAP = {
@@ -212,44 +215,28 @@ def enhance_dsl_with_llm(dsl: dict, framework: str, component_lib: str) -> dict:
         unrecognized = [c for c in flat_comps if c["type"] in ("container", "box")][:20]
 
         # 构造 Prompt
-        prompt = f"""你是一个前端架构专家和设计系统专家。分析以下从 Figma 转换的 DSL，补充语义信息。
-
-## 目标框架: {framework}
-## 组件库: {component_lib}
-
-## DSL 组件列表:
-{json.dumps(flat_comps[:50], ensure_ascii=False, indent=2)}
-
-## 规则引擎未识别的组件（需要 LLM 推断类型）:
-{json.dumps(unrecognized, ensure_ascii=False, indent=2)}
-
-## 重复出现的样式值（可用于 Token 化）:
-{json.dumps(repeated_styles, ensure_ascii=False, indent=2)}
-
-## 请输出 JSON，包含以下字段:
-
-1. componentTypes: 对未识别组件推断具体类型。根据子结构判断（如"一个 TEXT+一个 RECTANGLE+圆角=button"）。格式: [{{"name": "组件名", "inferredType": "推断类型", "reason": "推断依据"}}]
-
-2. enhancedProps: 为组件补充 Props。分析上下文推断 label/placeholder/disabled/options 等。格式: [{{"name": "组件名", "props": {{"key": "value"}}}}]
-
-3. relationships: 识别组件间语义关系。格式: [{{"type": "formItem/labelInput/tableRow/modalLayout/formGroup/tabPanel", "members": ["组件名1","组件名2"], "description": "关系描述"}}]
-
-4. designTokens: 将重复样式抽象为 Design Token。格式: [{{"token": "--token-name", "value": "样式值", "category": "color/spacing/fontSize/borderRadius/shadow", "usages": ["组件名"]}}]
-
-5. interactions: 推断交互逻辑。格式: [{{"trigger": "组件名", "action": "onClick/onChange/onSubmit/toggle", "description": "交互描述", "relatedComponents": ["关联组件"]}}]
-
-6. responsiveHints: 响应式布局建议。格式: [{{"target": "组件名", "breakpoint": "mobile/tablet", "suggestion": "具体建议"}}]
-
-只输出 JSON，不要任何解释。"""
+        prompt = build_converter_enhancement_prompt(
+            flat_comps=flat_comps,
+            unrecognized=unrecognized,
+            repeated_styles=repeated_styles,
+            framework=framework,
+            component_lib=component_lib,
+        )
 
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content.strip()
 
-        # 提取 JSON
+        # 提取 JSON（容错处理）
         if "```json" in content:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
+        # 尝试找到第一个 { 到最后一个 } 之间的内容
+        if not content.startswith("{"):
+            start = content.find("{")
+            end = content.rfind("}")
+            if start >= 0 and end > start:
+                content = content[start:end + 1]
 
         enhancement = json.loads(content)
 

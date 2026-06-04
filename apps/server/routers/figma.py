@@ -4,9 +4,16 @@ Figma API 路由
 import re
 import time
 from fastapi import APIRouter, HTTPException
+from config import FIGMA_TOKEN
 from models import PipelineRunRequest
 
 router = APIRouter()
+
+
+@router.get("/api/figma/config")
+async def figma_config():
+    """返回 Figma Token 配置（供前端自动获取）"""
+    return {"figmaToken": FIGMA_TOKEN or None}
 
 
 def _extract_nodes(node: dict, depth: int = 0) -> list:
@@ -23,28 +30,35 @@ def _extract_nodes(node: dict, depth: int = 0) -> list:
 
 @router.post("/api/figma/analyze")
 async def figma_analyze(req: PipelineRunRequest):
-    import httpx
-    from config import SILICONFLOW_API_KEY
+    import json
+    import urllib.request
+    import ssl
+    import urllib.error
 
-    match = re.search(r"figma\.com/(?:file|design)/([a-zA-Z0-9]+)", req.url)
+    match = re.search(r"figma\.com/(?:file|design|proto)/([a-zA-Z0-9]+)", req.url)
     if not match:
         raise HTTPException(status_code=400, detail="Invalid Figma URL")
 
-    figma_token = req.figmaToken or SILICONFLOW_API_KEY
-    resp = httpx.get(
-        f"https://api.figma.com/v1/files/{match.group(1)}?depth=2",
-        headers={"X-Figma-Token": figma_token}, timeout=30,
-    )
-    if resp.status_code != 200:
-        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    figma_token = req.figmaToken or FIGMA_TOKEN
+    file_key = match.group(1)
+    api_url = f"https://api.figma.com/v1/files/{file_key}?depth=2"
 
-    data = resp.json()
+    req_obj = urllib.request.Request(api_url, headers={"X-Figma-Token": figma_token})
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req_obj, timeout=30, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        raise HTTPException(status_code=e.code, detail=f"Figma API error: {e.read().decode()}")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Figma API request failed: {e}")
+
     return {
         "taskId": f"task_{int(time.time())}",
         "status": "completed",
         "url": req.url,
         "framework": req.framework,
-        "previewUrl": f"https://www.figma.com/file/{match.group(1)}",
+        "previewUrl": f"https://www.figma.com/file/{file_key}",
         "nodes": _extract_nodes(data.get("document", {})),
         "metadata": {"fileName": data.get("name", "")},
     }

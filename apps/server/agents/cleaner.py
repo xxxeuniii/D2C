@@ -2,12 +2,15 @@
 Agent 1: 数据清洗（Python 代码兜底 + LLM 语义增强）
 核心逻辑用确定性的 Python 代码保证正确性，
 LLM 在规则引擎输出基础上补充语义理解，失败时安全降级。
+
+Prompt 模板集中在 prompts/enhancement.py 中管理。
 """
 import json
 import time
 from typing import Optional
-from langchain.schema import HumanMessage
+from langchain_core.messages import HumanMessage
 from services.llm import llm
+from prompts.enhancement import build_cleaner_enhancement_prompt
 
 # 需要移除的顶层字段
 TOP_LEVEL_REMOVE = {
@@ -332,23 +335,11 @@ def enhance_cleaned_data_with_llm(cleaned_data: dict) -> dict:
         _collect_layout_nodes(tree, layouts)
 
         # 构造 Prompt
-        prompt = f"""你是一个设计系统专家。分析以下 Figma 设计稿的清洗数据，补充语义信息。
-
-## 颜色信息:
-{json.dumps(colors[:30], ensure_ascii=False, indent=2)}
-
-## 文本信息:
-{json.dumps(texts[:20], ensure_ascii=False, indent=2)}
-
-## 布局结构:
-{json.dumps(layouts[:20], ensure_ascii=False, indent=2)}
-
-## 请输出 JSON，包含以下字段:
-- colorTokens: 将颜色语义化为 CSS 变量名。识别主色(--color-primary)、背景色(--bg-surface, --bg-elevated)、文字色(--text-primary, --text-secondary)、边框色(--border-default)、错误色等。value 是原始色值，token 是建议的 CSS 变量名。
-- textRoles: 将文本按语义角色分类。title/heading/body/placeholder/helper/cta/label。输出格式: {{"text": "原文", "role": "角色"}}
-- layoutIntent: 对主要布局节点推断意图。header/sidebar/content/footer/card-grid/form/hero 等。
-
-只输出 JSON，不要任何解释。"""
+        prompt = build_cleaner_enhancement_prompt(
+            colors=colors,
+            texts=texts,
+            layouts=layouts,
+        )
 
         response = llm.invoke([HumanMessage(content=prompt)])
         content = response.content.strip()
@@ -358,6 +349,12 @@ def enhance_cleaned_data_with_llm(cleaned_data: dict) -> dict:
             content = content.split("```json")[1].split("```")[0].strip()
         elif "```" in content:
             content = content.split("```")[1].split("```")[0].strip()
+        # 尝试找到第一个 { 到最后一个 } 之间的内容
+        if not content.startswith("{"):
+            start = content.find("{")
+            end = content.rfind("}")
+            if start >= 0 and end > start:
+                content = content[start:end + 1]
 
         enhancement = json.loads(content)
 

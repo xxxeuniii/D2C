@@ -8,9 +8,40 @@ Tool 设计原则：
 1. 单一职责：每个 Tool 只做一件事
 2. 清晰输入输出：docstring 明确描述输入参数和返回值
 3. 错误处理：Tool 内部处理异常，不抛给 Agent
+4. 请求隔离：使用 ContextVar 确保并发请求间上下文互不干扰
 """
 import json
-from langchain.tools import tool
+import contextvars
+from typing import Optional
+from langchain_core.tools import tool
+from langchain_core.messages import HumanMessage
+from services.llm import code_llm
+from prompts.generation import build_code_modification_prompt
+
+
+# ============================================
+# 请求级上下文隔离（替代全局变量，支持并发）
+# ============================================
+
+# ContextVar 确保每个请求/协程有独立的上下文
+_pipeline_context_var: contextvars.ContextVar[Optional[dict]] = contextvars.ContextVar(
+    "pipeline_context", default=None
+)
+
+
+def get_pipeline_context() -> dict:
+    """获取当前请求的流水线上下文（线程安全/协程安全）"""
+    ctx = _pipeline_context_var.get()
+    if ctx is None:
+        ctx = {}
+        _pipeline_context_var.set(ctx)
+    return ctx
+
+
+def reset_pipeline_context():
+    """重置当前请求的流水线上下文"""
+    _pipeline_context_var.set({})
+
 
 # ============================================
 # Agent 1 可用 Tools：数据清洗
@@ -145,42 +176,33 @@ def validate_and_fix_code(code: str) -> str:
 
 
 # ============================================
-# 上下文管理 Tools（Agent 间数据传递）
+# 上下文管理 Tools（Agent 间数据传递，请求级隔离）
 # ============================================
-
-_pipeline_context: dict = {}
-
-
-def get_pipeline_context() -> dict:
-    return _pipeline_context
-
-
-def reset_pipeline_context():
-    global _pipeline_context
-    _pipeline_context = {}
 
 
 @tool
 def save_to_context(key: str, value: str) -> str:
     """
-    将处理结果保存到流水线共享上下文，供后续 Agent 读取。
+    将处理结果保存到当前请求的流水线上下文，供后续 Agent 读取。
     可用 key：cleaned_data, dsl, dsl_with_docs, generated_code, validation_result
+    
+    注意：上下文通过 ContextVar 隔离，不同请求间互不干扰。
     """
-    global _pipeline_context
-    _pipeline_context[key] = value
+    ctx = get_pipeline_context()
+    ctx[key] = value
     return f"已保存 {key} 到流水线上下文"
 
 
 @tool
 def read_from_context(key: str) -> str:
     """
-    从流水线共享上下文中读取数据。
+    从当前请求的流水线上下文中读取数据。
     可用 key：figma_raw, cleaned_data, dsl, dsl_with_docs, generated_code,
             validation_result, framework, componentLib
     """
-    global _pipeline_context
-    if key in _pipeline_context:
-        val = _pipeline_context[key]
+    ctx = get_pipeline_context()
+    if key in ctx:
+        val = ctx[key]
         return val if isinstance(val, str) else json.dumps(val, ensure_ascii=False)
     return f"错误：上下文中没有 {key}"
 
@@ -192,12 +214,12 @@ def read_from_context(key: str) -> str:
 @tool
 def get_current_code() -> str:
     """
-    获取当前流水线上下文中的最新代码。
+    获取当前请求上下文中保存的最新代码。
     用于 Chat Agent 在多轮对话中查看需要修改的代码。
     输出：当前代码字符串，如果没有代码则返回提示
     """
-    global _pipeline_context
-    code = _pipeline_context.get("generated_code", "")
+    ctx = get_pipeline_context()
+    code = ctx.get("generated_code", "")
     if not code:
         return "当前没有代码。请先运行流水线生成代码。"
     # 截断过长代码
@@ -221,39 +243,26 @@ def modify_code(modification_request: str) -> str:
     
     支持的操作：修改样式、添加组件、删除组件、调整布局、修改文案、添加交互等
     """
-    from langchain.schema import HumanMessage
-    from services.llm import code_llm
-
-    global _pipeline_context
-    current_code = _pipeline_context.get("generated_code", "")
+    ctx = get_pipeline_context()
+    current_code = ctx.get("generated_code", "")
     if not current_code:
         return "错误：当前没有代码，请先生成代码。"
 
-    framework = _pipeline_context.get("framework", "react")
-    component_lib = _pipeline_context.get("componentLib", "element-plus")
+    framework = ctx.get("framework", "react")
+    component_lib = ctx.get("componentLib", "element-plus")
 
-    prompt = f"""你是一个资深前端开发。用户要求修改以下代码。
-
-## 当前代码:
-```{'vue' if framework == 'vue2' else 'tsx'}
-{current_code[:6000]}
-```
-
-## 修改要求:
-{modification_request}
-
-## 要求:
-- 只修改用户要求的部分，其他代码保持不变
-- 保持原有的框架和组件库（{framework} + {component_lib}）
-- 保持暗色主题设计系统
-- 完整可运行
-- 只输出完整代码，不要任何解释"""
+    prompt = build_code_modification_prompt(
+        current_code=current_code,
+        modification_request=modification_request,
+        framework=framework,
+        component_lib=component_lib,
+    )
 
     response = code_llm.invoke([HumanMessage(content=prompt)])
     new_code = response.content
 
-    # 自动保存到上下文
-    _pipeline_context["generated_code"] = new_code
+    # 自动保存到当前请求的上下文
+    ctx["generated_code"] = new_code
 
     return f"代码已修改完成。修改内容：{modification_request}\n\n修改后的代码已自动保存，用户可以直接查看。"
 
@@ -266,13 +275,13 @@ def validate_current_code() -> str:
     """
     from agents.validator import validate_and_fix as _val
 
-    global _pipeline_context
-    code = _pipeline_context.get("generated_code", "")
+    ctx = get_pipeline_context()
+    code = ctx.get("generated_code", "")
     if not code:
         return "当前没有代码，无法验证。"
 
     result = _val.invoke(code)
-    _pipeline_context["validation_result"] = result
+    ctx["validation_result"] = result
     return result
 
 

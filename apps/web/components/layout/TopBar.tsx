@@ -9,9 +9,10 @@ interface TopBarProps {
 }
 
 const pageTitles: Record<string, string> = {
-  "/figma2code": "Figma \u2192 Code",
-  "/agent": "Agent Workflow",
-  "/knowledge": "Knowledge Base",
+  "/figma2code": "设计稿转代码",
+  "/agent": "Agent 流水线",
+  "/knowledge": "知识库",
+  "/debug": "Agent 调试",
 };
 
 export function TopBar({ onToggleSidebar, onToggleRightPanel }: TopBarProps) {

@@ -19,8 +19,10 @@ const AGENTS = [
   { num: 5, name: "测试验证", icon: ShieldCheck, color: "text-red-400", desc: "AST 检查 + 编译验证" },
 ];
 
+const DEFAULT_FIGMA_URL = "https://www.figma.com/design/dEDv2fBxzJ9Gbsbhv2XSZP/Untitled?node-id=0-1&p=f&t=b5hI6no6Iv5Kzydx-0";
+
 export default function AgentPage() {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(DEFAULT_FIGMA_URL);
   const [framework, setFramework] = useState<"react" | "vue2" | "nextjs">("react");
   const [componentLib, setComponentLib] = useState<"element-plus" | "antd" | "shadcn">("element-plus");
   const [isRunning, setIsRunning] = useState(false);
@@ -50,7 +52,7 @@ export default function AgentPage() {
     }
   }, [url, framework, componentLib, isRunning]);
 
-  const isValidUrl = url.trim().match(/^https?:\/\/(www\.)?figma\.com\/(file|design)\/.+/);
+  const isValidUrl = url.trim().match(/^https?:\/\/(www\.)?figma\.com\/(file|design|proto)\/.+/);
 
   return (
     <div className="flex h-full overflow-hidden">
@@ -59,7 +61,7 @@ export default function AgentPage() {
         <div className="border-b border-border px-4 py-4">
           <h2 className="text-sm font-semibold text-text-primary flex items-center gap-2">
             <Wrench className="h-4 w-4 text-brand-primary" />
-            Multi-Agent Pipeline
+            多 Agent 流水线
           </h2>
           <p className="mt-1 text-xs text-text-tertiary">
             5 个 Agent 协同: 清洗 → 结构化 → 检索 → 生成 → 验证
@@ -69,7 +71,7 @@ export default function AgentPage() {
         <div className="p-4 space-y-4">
           {/* URL */}
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Figma URL</label>
+            <label className="mb-1.5 block text-xs font-medium text-text-secondary">Figma 链接</label>
             <div className="relative">
               <Link className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
               <Input placeholder="https://www.figma.com/file/..." value={url}
@@ -110,13 +112,13 @@ export default function AgentPage() {
           {/* Run */}
           <Button onClick={runPipeline} disabled={!isValidUrl || isRunning} isLoading={isRunning} className="w-full gap-2" size="lg">
             <Play className="h-4 w-4" />
-            {isRunning ? `Agent ${Math.min(steps.length + 1, 5)}/5 运行中...` : "Run Pipeline"}
+            {isRunning ? `Agent ${Math.min(steps.length + 1, 5)}/5 运行中...` : "运行流水线"}
           </Button>
 
           {!isRunning && steps.length > 0 && (
             <Button variant="ghost" size="sm" className="w-full gap-2"
               onClick={() => { setSteps([]); setResult(undefined); setError(undefined); }}>
-              <RefreshCw className="h-3.5 w-3.5" /> Reset
+              <RefreshCw className="h-3.5 w-3.5" /> 重置
             </Button>
           )}
 
@@ -182,7 +184,7 @@ export default function AgentPage() {
           {steps.length === 0 && !isRunning && (
             <div className="flex flex-col items-center justify-center h-full text-text-tertiary">
               <Wrench className="mb-3 h-12 w-12 opacity-20" />
-              <p className="text-sm">输入 Figma 链接, 点击 Run Pipeline</p>
+              <p className="text-sm">输入 Figma 链接，点击「运行流水线」</p>
               <p className="text-xs mt-1">观察 5 个 Agent 如何协同工作</p>
             </div>
           )}

@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     // 验证 Figma URL 格式
-    const figmaUrlPattern = /^https?:\/\/(www\.)?figma\.com\/(file|design)\/.+/;
+    const figmaUrlPattern = /^https?:\/\/(www\.)?figma\.com\/(file|design|proto)\/.+/;
     if (!figmaUrlPattern.test(url)) {
       return NextResponse.json(
         { error: "Invalid Figma URL format" },
@@ -50,6 +50,16 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const backendUrl = process.env.BACKEND_API_URL || "http://localhost:8080";
+
+    // /api/figma/config — 获取 Figma Token 配置
+    if (req.nextUrl.pathname.endsWith("/config")) {
+      const response = await fetch(`${backendUrl}/api/figma/config`);
+      const data = await response.json();
+      return NextResponse.json(data);
+    }
+
+    // /api/figma?taskId=xxx — 查询任务状态
     const taskId = req.nextUrl.searchParams.get("taskId");
 
     if (!taskId) {
@@ -58,8 +68,6 @@ export async function GET(req: NextRequest) {
         { status: 400 }
       );
     }
-
-    const backendUrl = process.env.BACKEND_API_URL || "http://localhost:8080";
 
     const response = await fetch(
       `${backendUrl}/api/figma/status?taskId=${taskId}`

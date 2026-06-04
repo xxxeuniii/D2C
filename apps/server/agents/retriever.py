@@ -1,23 +1,22 @@
 """
-Agent 3: 知识检索（ChromaDB RAG）
+Agent 3: 知识检索（ChromaDB RAG）+ 反幻觉过滤
 """
 import json
-from langchain.tools import tool
+from langchain_core.tools import tool
 from services.chroma import collection
+from agents.anti_hallucination import filter_retrieval_results
 
 
 @tool
 def search_component_docs(dsl_json: str, component_lib: str = "element-plus") -> str:
     """
     从 ChromaDB 知识库检索组件文档，附加到 DSL 中。
-    输入: DSL JSON + 组件库名称
-    输出: 附加了文档的 DSL JSON
+    包含相关性过滤和反幻觉校验。
     """
     try:
         dsl = json.loads(dsl_json) if isinstance(dsl_json, str) else dsl_json
         components = dsl.get("components", [])
 
-        # 收集所有组件类型
         component_types = set()
 
         def collect_types(comps):
@@ -30,13 +29,15 @@ def search_component_docs(dsl_json: str, component_lib: str = "element-plus") ->
 
         collect_types(components)
 
-        # 对每个类型检索文档
         docs = {}
         for comp_type in component_types:
             query = f"{component_lib} {comp_type} 组件 API 用法 示例"
-            results = collection.query(query_texts=[query], n_results=2)
-            if results["ids"] and results["ids"][0]:
-                docs[comp_type] = results["documents"][0][0][:800]
+            results = collection.query(query_texts=[query], n_results=3)
+
+            # 反幻觉第一层：相关性过滤
+            filtered = filter_retrieval_results(comp_type, results, min_score=0.5)
+            if filtered:
+                docs[comp_type] = filtered[0]  # 取最相关的一个
 
         dsl["componentDocs"] = docs
         dsl["componentLib"] = component_lib

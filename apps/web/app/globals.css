@@ -3,43 +3,43 @@
 @tailwind utilities;
 
 /* ============================================
-   CSS Variables Token System - Terminal Green
+   CSS Variables Token System - Light Theme
    ============================================ */
 
 :root {
   /* --- Colors - Background --- */
-  --color-bg-base: #0D1117;
-  --color-bg-surface: #161B22;
-  --color-bg-elevated: #1C2333;
-  --color-bg-overlay: rgba(0, 0, 0, 0.7);
+  --color-bg-base: #F5F7FA;
+  --color-bg-surface: #FFFFFF;
+  --color-bg-elevated: #F0F2F5;
+  --color-bg-overlay: rgba(0, 0, 0, 0.4);
 
-  /* --- Colors - Brand (Green) --- */
-  --color-brand-primary: #2EA043;
-  --color-brand-primary-hover: #3FB950;
-  --color-brand-primary-active: #238636;
-  --color-brand-secondary: #56D364;
-  --color-brand-accent: #7EE787;
+  /* --- Colors - Brand (Blue) --- */
+  --color-brand-primary: #2563EB;
+  --color-brand-primary-hover: #3B82F6;
+  --color-brand-primary-active: #1D4ED8;
+  --color-brand-secondary: #60A5FA;
+  --color-brand-accent: #93C5FD;
 
   /* --- Colors - Text --- */
-  --color-text-primary: #E6EDF3;
-  --color-text-secondary: #8B949E;
-  --color-text-tertiary: #484F58;
-  --color-text-inverse: #0D1117;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6B7280;
+  --color-text-tertiary: #9CA3AF;
+  --color-text-inverse: #FFFFFF;
 
   /* --- Colors - Border --- */
-  --color-border: rgba(240, 246, 252, 0.1);
-  --color-border-strong: rgba(240, 246, 252, 0.16);
-  --color-border-focus: rgba(46, 160, 67, 0.4);
+  --color-border: rgba(0, 0, 0, 0.08);
+  --color-border-strong: rgba(0, 0, 0, 0.14);
+  --color-border-focus: rgba(37, 99, 235, 0.3);
 
   /* --- Colors - Status --- */
-  --color-status-success: #2EA043;
-  --color-status-warning: #D29922;
-  --color-status-error: #F85149;
-  --color-status-info: #58A6FF;
+  --color-status-success: #10B981;
+  --color-status-warning: #F59E0B;
+  --color-status-error: #EF4444;
+  --color-status-info: #3B82F6;
 
   /* --- Colors - Code --- */
-  --color-code-bg: #0D1117;
-  --color-code-header: #161B22;
+  --color-code-bg: #1E293B;
+  --color-code-header: #334155;
 
   /* --- Font Family --- */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -69,9 +69,9 @@
   --radius-full: 9999px;
 
   /* --- Shadows --- */
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
 
   /* --- Layout --- */
   --sidebar-width: 200px;
@@ -104,8 +104,8 @@
   }
   ::-webkit-scrollbar { width: 6px; height: 6px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 3px; }
-  ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.18); }
+  ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.15); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.25); }
 }
 
 @layer components {
