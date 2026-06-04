@@ -146,9 +146,29 @@ async def run_pipeline(req: PipelineRunRequest):
             pipeline_runs[run_id]["steps"][0]["status"] = "running"
             _push({"steps": list(pipeline_runs[run_id]["steps"])})
             figma_raw = _fetch_figma_data(req.url, req.figmaToken)
+            # 解析节点树信息
+            try:
+                figma_obj = json.loads(figma_raw)
+                doc = figma_obj.get("document", {})
+                def count_nodes(node, depth=0):
+                    if depth > 10: return 0
+                    c = 1
+                    for child in node.get("children", []):
+                        c += count_nodes(child, depth + 1)
+                    return c
+                total_nodes = count_nodes(doc)
+                figma_info = {
+                    "fileName": figma_obj.get("name", ""),
+                    "totalNodes": total_nodes,
+                    "pages": len(doc.get("children", [])),
+                    "tree": doc,
+                }
+            except Exception:
+                figma_info = {"fileName": "Unknown", "totalNodes": 0, "pages": 0, "tree": {}}
             pipeline_runs[run_id]["steps"][0] = {
                 "agent": 0, "name": agent_names[0], "status": "completed",
-                "output": f"获取到 {len(figma_raw)} 字符",
+                "output": f"获取到 {len(figma_raw)} 字符，{figma_info['totalNodes']} 个节点",
+                "figmaData": figma_info,
             }
             _push({"steps": list(pipeline_runs[run_id]["steps"])})
 

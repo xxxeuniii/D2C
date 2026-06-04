@@ -11,7 +11,6 @@ interface SidebarProps {
 
 const navItems = [
   { icon: Figma, label: "设计稿转代码", path: "/figma2code" },
-  { icon: Wrench, label: "Agent 流水线", path: "/agent" },
   { icon: Database, label: "知识库", path: "/knowledge" },
   { icon: Wrench, label: "Agent 调试", path: "/debug" },
 ];

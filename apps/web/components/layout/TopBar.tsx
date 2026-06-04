@@ -10,7 +10,6 @@ interface TopBarProps {
 
 const pageTitles: Record<string, string> = {
   "/figma2code": "设计稿转代码",
-  "/agent": "Agent 流水线",
   "/knowledge": "知识库",
   "/debug": "Agent 调试",
 };

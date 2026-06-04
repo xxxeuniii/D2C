@@ -5,10 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { client } from "@/lib/api/client";
 import { cn } from "@/lib/utils/cn";
+import dynamic from "next/dynamic";
 import {
-  Play, RefreshCw, Loader2, CheckCircle2, XCircle, Circle,
-  Eraser, GitBranch, Database, Code2, ShieldCheck, FileJson, ArrowRight, Download, Copy, Check, Sparkles
+  Play, Loader2, CheckCircle2, XCircle, Circle,
+  Eraser, GitBranch, Database, Code2, ShieldCheck, FileJson, Copy, Check, Sparkles
 } from "lucide-react";
+
+const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), { ssr: false });
 
 const AGENTS = [
   { id: 1, name: "数据清洗", icon: Eraser, color: "text-orange-500", desc: "Python 代码清洗 Figma JSON + LLM 语义增强" },
@@ -25,7 +28,40 @@ interface StepInfo {
   name: string;
   status: string;
   output?: string;
-  input?: string;
+  figmaData?: any;
+}
+
+// Figma 节点树递归组件
+function FigmaNodeTree({ node, depth = 0 }: { node: any; depth?: number }) {
+  const [expanded, setExpanded] = useState(depth < 2);
+  const hasChildren = node.children && node.children.length > 0;
+  const typeColors: Record<string, string> = {
+    DOCUMENT: "text-blue-500", CANVAS: "text-purple-500", FRAME: "text-green-500",
+    TEXT: "text-orange-500", RECTANGLE: "text-cyan-500", COMPONENT: "text-pink-500",
+    GROUP: "text-yellow-500", INSTANCE: "text-teal-500",
+  };
+  const nodeType = node.type || "UNKNOWN";
+  const nodeName = node.name || "(未命名)";
+
+  return (
+    <div>
+      <div
+        className="flex items-center gap-1.5 py-1 px-1.5 rounded hover:bg-bg-elevated/50 cursor-pointer text-xs transition-colors"
+        style={{ paddingLeft: depth * 16 + 4 }}
+        onClick={() => hasChildren && setExpanded(!expanded)}
+      >
+        {hasChildren ? (
+          expanded ? <span className="text-text-tertiary w-3">▼</span> : <span className="text-text-tertiary w-3">▶</span>
+        ) : <span className="w-3" />}
+        <span className={cn("font-medium", typeColors[nodeType] || "text-text-tertiary")}>{nodeType}</span>
+        <span className="text-text-secondary truncate">{nodeName}</span>
+        {node.characters && <span className="text-text-tertiary truncate ml-1">"{node.characters.slice(0, 20)}"</span>}
+      </div>
+      {expanded && hasChildren && node.children.map((child: any, i: number) => (
+        <FigmaNodeTree key={child.id || i} node={child} depth={depth + 1} />
+      ))}
+    </div>
+  );
 }
 
 export default function DebugPage() {
@@ -80,19 +116,16 @@ export default function DebugPage() {
 
       // 显示初始步骤
       const mapped: StepInfo[] = (initSteps || []).map((s: any) => ({
-        agent: s.agent, name: s.name, status: s.status, output: s.output,
+        agent: s.agent, name: s.name, status: s.status, output: s.output, figmaData: s.figmaData,
       }));
       setSteps(mapped);
 
-      const newTimers: Record<number, number> = {};
-      for (const s of mapped) {
-        if (s.status === "running") newTimers[s.agent] = Date.now();
-      }
-      setTimers(newTimers);
+      // 只有 SSE 推送 running 状态时才启动计时器，初始不做计时
+      setTimers({});
 
       // 2. SSE 监听进度
       await new Promise<void>((resolve, reject) => {
-        const eventSource = new EventSource(`/api/pipeline/stream/${runId}`);
+        const eventSource = new EventSource(`http://localhost:8080/api/pipeline/stream/${runId}`);
 
         eventSource.onmessage = (event) => {
           try {
@@ -101,13 +134,15 @@ export default function DebugPage() {
 
             if (data.steps) {
               const updated = data.steps.map((s: any) => ({
-                agent: s.agent, name: s.name, status: s.status, output: s.output,
+                agent: s.agent, name: s.name, status: s.status, output: s.output, figmaData: s.figmaData,
               }));
               setSteps(updated);
               setTimers((prev) => {
                 const next = { ...prev };
                 for (const s of updated) {
                   if (s.status === "running" && !next[s.agent]) next[s.agent] = Date.now();
+                  // 完成的步骤清除计时器
+                  if (s.status !== "running" && next[s.agent]) delete next[s.agent];
                 }
                 return next;
               });
@@ -162,7 +197,7 @@ export default function DebugPage() {
           </div>
           {isRunning && totalStart > 0 && (
             <p className="text-xs text-text-tertiary mt-1">
-              总耗时: {Math.floor((Date.now() - totalStart) / 1000)}s
+              总耗时: {(Math.round((Date.now() - totalStart) / 10) / 100).toFixed(2)}s
             </p>
           )}
         </div>
@@ -181,7 +216,7 @@ export default function DebugPage() {
               <FileJson className="h-3.5 w-3.5 text-text-tertiary" />
               <span className="font-medium text-text-primary">获取 Figma 数据</span>
               {fetchStep0?.status === "running" && elapsed[0] != null && (
-                <span className="ml-auto text-xs text-status-info font-mono">{elapsed[0]}s</span>
+                <span className="ml-auto text-xs text-status-info font-mono">{elapsed[0]?.toFixed(2)}s</span>
               )}
             </div>
             {fetchStep0?.output && (
@@ -208,7 +243,7 @@ export default function DebugPage() {
                   <a.icon className={cn("h-3.5 w-3.5", a.color)} />
                   <span className="font-medium text-text-primary">Agent {a.id}: {a.name}</span>
                   {step?.status === "running" && elapsed[a.id] != null && (
-                    <span className="ml-auto text-xs text-status-info font-mono">{elapsed[a.id]}s</span>
+                    <span className="ml-auto text-xs text-status-info font-mono">{elapsed[a.id]?.toFixed(2)}s</span>
                   )}
                 </div>
                 {step?.output && (
@@ -256,22 +291,20 @@ export default function DebugPage() {
               <Badge variant="success" className="text-xs ml-auto">完成</Badge>
             </div>
             <div className="p-4 space-y-3">
-              <div>
-                <h4 className="text-xs font-semibold text-text-tertiary mb-1.5 flex items-center gap-1.5">
-                  <ArrowRight className="h-3 w-3" /> 输入
-                </h4>
-                <pre className="text-xs text-text-secondary font-mono whitespace-pre-wrap bg-bg-base rounded border border-border/50 p-3">
-                  {`Figma URL: ${FIGMA_URL}\n目标框架: react\n组件库: element-plus`}
-                </pre>
+              <div className="flex items-center gap-3 text-xs text-text-secondary">
+                <span>📁 <b>{fetchStep0.figmaData?.fileName || "Untitled"}</b></span>
+                <span>📄 {fetchStep0.figmaData?.pages || 0} 个页面</span>
+                <span>🔢 {fetchStep0.figmaData?.totalNodes || 0} 个节点</span>
               </div>
-              <div>
-                <h4 className="text-xs font-semibold text-text-tertiary mb-1.5 flex items-center gap-1.5">
-                  <Download className="h-3 w-3" /> 输出
-                </h4>
-                <pre className="text-xs text-text-secondary font-mono whitespace-pre-wrap bg-bg-base rounded border border-border/50 p-3">
-                  {fetchStep0.output || "无输出"}
-                </pre>
-              </div>
+              {/* Figma 节点树 */}
+              {fetchStep0.figmaData?.tree && (
+                <div>
+                  <h4 className="text-xs font-semibold text-text-tertiary mb-1.5">📐 设计稿节点树</h4>
+                  <div className="bg-bg-base rounded border border-border/50 p-2 max-h-96 overflow-auto">
+                    <FigmaNodeTree node={fetchStep0.figmaData.tree} depth={0} />
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -295,7 +328,7 @@ export default function DebugPage() {
                 <a.icon className={cn("h-4 w-4", a.color)} />
                 <h3 className="text-sm font-medium text-text-primary">Agent {a.id}: {a.name}</h3>
                 {step.status === "running" && elapsed[a.id] != null && (
-                  <span className="text-xs text-status-info font-mono">{elapsed[a.id]}s</span>
+                  <span className="text-xs text-status-info font-mono">{elapsed[a.id]?.toFixed(2)}s</span>
                 )}
                 <Badge
                   variant={step.status === "completed" ? "success" : step.status === "running" ? "warning" : "error"}
@@ -329,21 +362,37 @@ export default function DebugPage() {
           );
         })}
 
-        {/* 最终代码 */}
+        {/* 最终代码 - Monaco Editor */}
         {allDone && resultCode && (
-          <div className="rounded-lg border border-brand-primary/30 bg-brand-primary/3 overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-brand-primary/20 bg-brand-primary/5">
+          <div className="rounded-lg border border-brand-primary/30 overflow-hidden flex flex-col" style={{ minHeight: "400px" }}>
+            <div className="flex items-center gap-2 px-4 py-2.5 border-b border-brand-primary/20 bg-brand-primary/5 flex-shrink-0">
               <Code2 className="h-4 w-4 text-brand-primary" />
-              <h3 className="text-sm font-medium text-brand-primary">生成的代码</h3>
+              <span className="text-xs font-medium text-brand-primary">index.tsx</span>
+              <span className="text-xs text-text-tertiary">{resultCode.length} 字符</span>
               <button onClick={() => handleCopy(resultCode, 99)}
                 className="ml-auto rounded p-1 text-brand-primary hover:text-brand-primary-hover transition-colors">
                 {copiedIdx === 99 ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
               </button>
             </div>
-            <div className="p-4">
-              <pre className="text-xs text-text-secondary font-mono whitespace-pre-wrap bg-bg-base rounded border border-border/50 p-3 max-h-[600px] overflow-auto">
-                {resultCode}
-              </pre>
+            <div className="flex-1 min-h-0">
+              <MonacoEditor
+                height="100%"
+                language="typescript"
+                value={resultCode}
+                theme="vs"
+                options={{
+                  readOnly: true,
+                  minimap: { enabled: false },
+                  fontSize: 13,
+                  fontFamily: "var(--font-mono)",
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: "on",
+                  padding: { top: 8 },
+                }}
+              />
             </div>
           </div>
         )}
