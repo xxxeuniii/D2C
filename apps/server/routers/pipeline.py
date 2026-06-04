@@ -1,21 +1,17 @@
 """
 流水线 API 路由
 
-三个端点：
-- POST /api/pipeline/run       Simple Chain 模式（固定顺序，速度快）
-- POST /api/pipeline/agent/run  Agent 模式（Tool + 自主决策）
-- POST /api/pipeline/chat       Chat 模式（Memory + 多轮对话迭代修改）
-- GET  /api/pipeline/stream/{run_id}  SSE 实时推送
+端点：
+- POST /api/pipeline/run       Simple Chain 模式
+- WS   /api/pipeline/ws/{run_id}  WebSocket 实时推送
 """
 import re
 import json
 import time
 import asyncio
-import queue
 import threading
 from typing import Dict, Any
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from models import PipelineRunRequest
 from pydantic import BaseModel
 from agents.pipeline import create_pipeline, create_agent_pipeline
@@ -23,44 +19,36 @@ from agents.orchestrator import get_orchestrator
 
 router = APIRouter()
 
-# SSE 消息队列
-_sse_queues: Dict[str, queue.Queue] = {}
+# WebSocket 连接池
+_ws_connections: Dict[str, WebSocket] = {}
 
 
-def _push_sse(run_id: str, data: dict):
-    """向 SSE 队列推送消息"""
-    q = _sse_queues.get(run_id)
-    if q:
-        q.put(data)
-
-
-@router.get("/api/pipeline/stream/{run_id}")
-async def stream_pipeline(run_id: str):
-    """SSE 实时推送流水线进度"""
-    q = _sse_queues[run_id] = queue.Queue()
-
-    async def event_generator():
+def _push_ws_sync(run_id: str, data: dict):
+    """向 WebSocket 推送消息（同步版，供后台线程调用）"""
+    ws = _ws_connections.get(run_id)
+    if ws:
         try:
-            while True:
-                try:
-                    data = await asyncio.to_thread(q.get, timeout=30)
-                    yield f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
-                    if data.get("type") == "done" or data.get("type") == "error":
-                        break
-                except queue.Empty:
-                    yield f"data: {json.dumps({'type': 'ping'})}\n\n"
-        finally:
-            _sse_queues.pop(run_id, None)
+            # 用 asyncio.run 在线程中发送
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            loop.run_until_complete(ws.send_json(data))
+            loop.close()
+        except Exception:
+            pass
 
-    return StreamingResponse(
-        event_generator(),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-        },
-    )
+
+@router.websocket("/api/pipeline/ws/{run_id}")
+async def ws_pipeline(ws: WebSocket, run_id: str):
+    """WebSocket 实时推送流水线进度"""
+    await ws.accept()
+    _ws_connections[run_id] = ws
+    try:
+        while True:
+            await ws.receive_text()  # 保持连接
+    except WebSocketDisconnect:
+        pass
+    finally:
+        _ws_connections.pop(run_id, None)
 
 # 内存存储运行状态
 pipeline_runs: Dict[str, Dict[str, Any]] = {}
@@ -139,7 +127,7 @@ async def run_pipeline(req: PipelineRunRequest):
     def _run_background():
         def _push(data: dict):
             pipeline_runs[run_id]["steps"] = data.get("steps", pipeline_runs[run_id]["steps"])
-            _push_sse(run_id, {"type": "progress", "steps": data["steps"]})
+            _push_ws_sync(run_id, {"type": "progress", "steps": data["steps"]})
 
         try:
             # Step 0: 获取 Figma 数据
@@ -254,12 +242,12 @@ async def run_pipeline(req: PipelineRunRequest):
 
             pipeline_runs[run_id]["status"] = "completed"
             pipeline_runs[run_id]["result"] = {"code": code, "validation": validation}
-            _push_sse(run_id, {"type": "done", "steps": list(pipeline_runs[run_id]["steps"]),
+            _push_ws_sync(run_id, {"type": "done", "steps": list(pipeline_runs[run_id]["steps"]),
                                 "result": pipeline_runs[run_id]["result"]})
         except Exception as e:
             pipeline_runs[run_id]["status"] = "error"
             pipeline_runs[run_id]["error"] = str(e)
-            _push_sse(run_id, {"type": "error", "error": str(e)})
+            _push_ws_sync(run_id, {"type": "error", "error": str(e)})
 
     # 先添加初始步骤（Figma 数据获取在后台线程中执行）
     pipeline_runs[run_id]["steps"].append({

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils/cn";
 import dynamic from "next/dynamic";
 import {
   Play, Loader2, CheckCircle2, XCircle, Circle,
-  Eraser, GitBranch, Database, Code2, ShieldCheck, FileJson, Copy, Check, Sparkles
+  Eraser, GitBranch, Database, Code2, ShieldCheck, FileJson, Copy, Check, Sparkles, Download
 } from "lucide-react";
 
 const MonacoEditor = dynamic(() => import("@monaco-editor/react").then((m) => m.default), { ssr: false });
@@ -120,54 +120,44 @@ export default function DebugPage() {
       }));
       setSteps(mapped);
 
-      // 只有 SSE 推送 running 状态时才启动计时器，初始不做计时
+      // 初始计时器清空
       setTimers({});
 
-      // 2. SSE 监听进度
+      // 2. 轮询进度（简单可靠）
       await new Promise<void>((resolve, reject) => {
-        const eventSource = new EventSource(`http://localhost:8080/api/pipeline/stream/${runId}`);
-
-        eventSource.onmessage = (event) => {
+        const poll = setInterval(async () => {
           try {
-            const data = JSON.parse(event.data);
-            if (data.type === "ping") return;
+            const res = await client.get(`/pipeline/run/${runId}`);
+            const run = res.data;
+            const runSteps = run.steps || [];
 
-            if (data.steps) {
-              const updated = data.steps.map((s: any) => ({
-                agent: s.agent, name: s.name, status: s.status, output: s.output, figmaData: s.figmaData,
-              }));
-              setSteps(updated);
-              setTimers((prev) => {
-                const next = { ...prev };
-                for (const s of updated) {
-                  if (s.status === "running" && !next[s.agent]) next[s.agent] = Date.now();
-                  // 完成的步骤清除计时器
-                  if (s.status !== "running" && next[s.agent]) delete next[s.agent];
-                }
-                return next;
-              });
-            }
+            const updated = runSteps.map((s: any) => ({
+              agent: s.agent, name: s.name, status: s.status, output: s.output, figmaData: s.figmaData,
+            }));
+            setSteps(updated);
+            setTimers((prev) => {
+              const next = { ...prev };
+              for (const s of updated) {
+                if (s.status === "running" && !next[s.agent]) next[s.agent] = Date.now();
+                if (s.status !== "running" && next[s.agent]) delete next[s.agent];
+              }
+              return next;
+            });
 
-            if (data.type === "done") {
-              eventSource.close();
-              setResultCode(data.result?.code || "");
+            if (run.status === "completed") {
+              clearInterval(poll);
+              setResultCode(run.result?.code || "");
               resolve();
-            } else if (data.type === "error") {
-              eventSource.close();
-              reject(new Error(data.error || "流水线失败"));
+            } else if (run.status === "error") {
+              clearInterval(poll);
+              reject(new Error(run.error || "流水线失败"));
             }
-          } catch {}
-        };
+          } catch {
+            // 继续轮询
+          }
+        }, 500);
 
-        eventSource.onerror = () => {
-          eventSource.close();
-          reject(new Error("SSE 连接断开"));
-        };
-
-        setTimeout(() => {
-          eventSource.close();
-          reject(new Error("超时"));
-        }, 300000);
+        setTimeout(() => { clearInterval(poll); reject(new Error("超时")); }, 300000);
       });
     } catch (err: any) {
       setError(err?.message || "执行失败");
