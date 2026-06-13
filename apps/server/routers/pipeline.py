@@ -129,10 +129,20 @@ async def run_pipeline(req: PipelineRunRequest):
             pipeline_runs[run_id]["steps"] = data.get("steps", pipeline_runs[run_id]["steps"])
             _push_ws_sync(run_id, {"type": "progress", "steps": data["steps"]})
 
+        def _update_step(idx: int, status: str, output: str = "", extra: dict = None):
+            """更新步骤并推送"""
+            step = dict(pipeline_runs[run_id]["steps"][idx])
+            step["status"] = status
+            if output:
+                step["output"] = output
+            if extra:
+                step.update(extra)
+            pipeline_runs[run_id]["steps"][idx] = step
+            _push({"steps": list(pipeline_runs[run_id]["steps"])})
+
         try:
             # Step 0: 获取 Figma 数据
-            pipeline_runs[run_id]["steps"][0]["status"] = "running"
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
+            _update_step(0, "running")
             figma_raw = _fetch_figma_data(req.url, req.figmaToken)
             # 解析节点树信息
             try:
@@ -153,93 +163,31 @@ async def run_pipeline(req: PipelineRunRequest):
                 }
             except Exception:
                 figma_info = {"fileName": "Unknown", "totalNodes": 0, "pages": 0, "tree": {}}
-            pipeline_runs[run_id]["steps"][0] = {
-                "agent": 0, "name": agent_names[0], "status": "completed",
-                "output": f"获取到 {len(figma_raw)} 字符，{figma_info['totalNodes']} 个节点",
-                "figmaData": figma_info,
-            }
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
+            _update_step(0, "completed",
+                f"获取到 {len(figma_raw)} 字符，{figma_info['totalNodes']} 个节点",
+                {"figmaData": figma_info})
 
-            # 逐步执行 5 个 Agent
-            from agents.cleaner import clean_figma_data, enhance_cleaned_data_with_llm
-            from agents.converter import convert_to_dsl, enhance_dsl_with_llm
-            from agents.retriever import search_component_docs
-            from agents.generator import generate_page_code
-            from agents.validator import validate_and_fix
+            # Step 1-5: 复用 create_pipeline() 链
+            pipeline_chain = create_pipeline()
+            result = pipeline_chain.invoke({
+                "figma_raw": figma_raw,
+                "framework": req.framework,
+                "componentLib": req.componentLib,
+            })
 
-            input_data = {"figma_raw": figma_raw, "framework": req.framework,
-                          "componentLib": req.componentLib}
+            # 同步步骤状态
+            agent_outputs = [
+                (1, f"清洗完成"),
+                (2, f"转换完成"),
+                (3, "知识检索完成"),
+                (4, f"代码生成完成，{len(result.get('generated_code', ''))} 字符"),
+                (5, "验证完成"),
+            ]
+            for idx, output in agent_outputs:
+                _update_step(idx, "completed", output)
 
-            # Agent 1
-            pipeline_runs[run_id]["steps"][1]["status"] = "running"
-            pipeline_runs[run_id]["steps"][1]["output"] = "Python 代码清洗中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            cleaned = clean_figma_data(input_data.get("figma_raw", ""))
-            pipeline_runs[run_id]["steps"][1]["output"] = "LLM 语义增强中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            cleaned = enhance_cleaned_data_with_llm(cleaned)
-            input_data["cleaned_data"] = json.dumps(cleaned, ensure_ascii=False)
-            pipeline_runs[run_id]["steps"][1] = {
-                "agent": 1, "name": f"Agent 1: {agent_names[1]}", "status": "completed",
-                "output": f"清洗完成，共 {len(cleaned.get('tree', {}).get('children', []))} 个顶层节点",
-            }
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-
-            # Agent 2
-            pipeline_runs[run_id]["steps"][2]["status"] = "running"
-            pipeline_runs[run_id]["steps"][2]["output"] = "Python 规则引擎转换中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            cleaned_obj = json.loads(input_data.get("cleaned_data", "{}"))
-            dsl = convert_to_dsl(cleaned_obj, req.framework, req.componentLib)
-            pipeline_runs[run_id]["steps"][2]["output"] = "LLM 语义增强中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            dsl = enhance_dsl_with_llm(dsl, req.framework, req.componentLib)
-            input_data["dsl"] = json.dumps(dsl, ensure_ascii=False, indent=2)
-            pipeline_runs[run_id]["steps"][2] = {
-                "agent": 2, "name": f"Agent 2: {agent_names[2]}", "status": "completed",
-                "output": f"转换完成，生成 {len(dsl.get('components', []))} 个组件",
-            }
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-
-            # Agent 3
-            pipeline_runs[run_id]["steps"][3]["status"] = "running"
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            dsl_str = input_data.get("dsl", "")
-            dsl_with_docs = search_component_docs.invoke(
-                {"dsl_json": dsl_str, "component_lib": req.componentLib}
-            )
-            input_data["dsl_with_docs"] = dsl_with_docs
-            pipeline_runs[run_id]["steps"][3] = {
-                "agent": 3, "name": f"Agent 3: {agent_names[3]}", "status": "completed",
-                "output": "知识检索完成",
-            }
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-
-            # Agent 4
-            pipeline_runs[run_id]["steps"][4]["status"] = "running"
-            pipeline_runs[run_id]["steps"][4]["output"] = "LLM 生成代码中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            code = generate_page_code.invoke(
-                {"dsl_with_docs": dsl_with_docs, "framework": req.framework}
-            )
-            input_data["generated_code"] = code
-            pipeline_runs[run_id]["steps"][4] = {
-                "agent": 4, "name": f"Agent 4: {agent_names[4]}", "status": "completed",
-                "output": f"代码生成完成，{len(code)} 字符",
-            }
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-
-            # Agent 5
-            pipeline_runs[run_id]["steps"][5]["status"] = "running"
-            pipeline_runs[run_id]["steps"][5]["output"] = "AST 静态分析 + LLM 审查中..."
-            _push({"steps": list(pipeline_runs[run_id]["steps"])})
-            validation = validate_and_fix.invoke(code)
-            input_data["validation_result"] = validation
-            pipeline_runs[run_id]["steps"][5] = {
-                "agent": 5, "name": f"Agent 5: {agent_names[5]}", "status": "completed",
-                "output": "验证完成",
-            }
-
+            code = result.get("generated_code", "")
+            validation = result.get("validation_result", "")
             pipeline_runs[run_id]["status"] = "completed"
             pipeline_runs[run_id]["result"] = {"code": code, "validation": validation}
             _push_ws_sync(run_id, {"type": "done", "steps": list(pipeline_runs[run_id]["steps"]),

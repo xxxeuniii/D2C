@@ -1,0 +1,107 @@
+name: CI/CD
+
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+
+concurrency:
+  group: d2c-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ci:
+    name: Build and validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: apps/server/requirements.txt
+
+      - name: Install backend dependencies
+        run: pip install -r apps/server/requirements.txt
+
+      - name: Validate backend syntax
+        run: python -m compileall -q apps/server
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+
+      - name: Install frontend dependencies
+        working-directory: apps/web
+        run: npm ci
+
+      - name: Build frontend
+        working-directory: apps/web
+        env:
+          BACKEND_API_URL: http://127.0.0.1:8082
+          RAG_BACKEND_URL: http://127.0.0.1:8082
+          NEXT_PUBLIC_BASE_PATH: /d2c
+          NEXT_PUBLIC_API_BASE_URL: /d2c/api
+        run: npm run build
+
+  deploy:
+    name: Deploy to production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+    needs: ci
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Create release archive
+        run: |
+          tar \
+            --exclude=.git \
+            --exclude=.github \
+            --exclude=node_modules \
+            --exclude=.next \
+            --exclude=venv \
+            --exclude=__pycache__ \
+            --exclude='*.pyc' \
+            --exclude=.env \
+            --exclude=.env.local \
+            --exclude=apps/server/chroma_data \
+            --exclude=output \
+            -czf "/tmp/d2c-${GITHUB_SHA}.tar.gz" .
+
+      - name: Upload release archive
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          scp -i ~/.ssh/deploy_key \
+            "/tmp/d2c-${GITHUB_SHA}.tar.gz" \
+            "${SSH_USER}@${SSH_HOST}:/tmp/d2c-${GITHUB_SHA}.tar.gz"
+
+      - name: Deploy and verify
+        env:
+          SSH_HOST: ${{ secrets.SSH_HOST }}
+          SSH_USER: ${{ secrets.SSH_USER }}
+        run: |
+          ssh -i ~/.ssh/deploy_key "${SSH_USER}@${SSH_HOST}" \
+            "bash -s -- '${GITHUB_SHA}'" < scripts/deploy-remote.sh

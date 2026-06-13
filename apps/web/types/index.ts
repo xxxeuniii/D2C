@@ -14,10 +14,10 @@ export interface FigmaNode {
     width: number;
     height: number;
   };
-  fills?: any[];
-  strokes?: any[];
-  effects?: any[];
-  style?: Record<string, any>;
+  fills?: unknown[];
+  strokes?: unknown[];
+  effects?: unknown[];
+  style?: Record<string, unknown>;
 }
 
 export interface GeneratedCodeFile {
@@ -64,10 +64,38 @@ export interface RAGSearchResult {
 }
 
 // ============================================
+// Pipeline Types
+// ============================================
+
+export interface PipelineStep {
+  agent: number;
+  name: string;
+  status: "running" | "completed" | "error" | "pending";
+  output?: string;
+  figmaData?: {
+    fileName: string;
+    totalNodes: number;
+    pages: number;
+    tree: FigmaNode;
+  };
+}
+
+export interface PipelineRunResult {
+  runId: string;
+  status: "running" | "completed" | "error";
+  steps: PipelineStep[];
+  result?: {
+    code: string;
+    validation: string;
+  };
+  error?: string;
+}
+
+// ============================================
 // API Types
 // ============================================
 
-export interface APIResponse<T = any> {
+export interface APIResponse<T = unknown> {
   data: T;
   message?: string;
   code?: number;

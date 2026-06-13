@@ -50,6 +50,7 @@ export function useFigma() {
             if (run.status === "completed" && run.result) {
               clearInterval(pollRef.current!);
               setAnalysis({
+                taskId: runId,
                 status: "completed",
                 generatedCode: run.result.code,
                 nodes: run.steps,
